@@ -1484,6 +1484,8 @@ AUTHOR_MAP = {
     "leonard@sellem.me": "leonardsellem",  # PR #37405 (desktop WS origin guard on remote/Tailscale binds)
     "42903577+ohMyJason@users.noreply.github.com": "ohMyJason",  # PR #29810 (discover_models in custom_providers section 4)
     "singhsanidhya741@gmail.com": "sanidhyasin",  # PR #40403 salvage (model.default_headers for custom OpenAI-compatible providers, #40033)
+    # PMOVES Mavis (local agent; fork consumer PRs for the harness v0 slice)
+    "Mavis@pmoves.local": "Mavis-PMOVES",
 }
 
 

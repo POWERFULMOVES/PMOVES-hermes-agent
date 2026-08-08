@@ -12,7 +12,7 @@ Hermes-side breakdown:
 - G. ToolsBridgeTests         (6) - register_pmoves_tools with real + stub CGPs
 - H. SubscriberTests          (3) - subscribe() is a safe no-op in v0
 
-Total: 31 tests, organized into 8 groups.
+Total: 33 tests, organized into 9 groups (A through H + I).
 """
 from __future__ import annotations
 
@@ -99,8 +99,8 @@ def test_A2_load_with_no_args_loads_example():
     bs = load_bootstrap()
     assert isinstance(bs, Bootstrap)
     assert bs.spec == PROFILE
-    assert bs.source.startswith("path:")
-    assert str(EXAMPLE_PATH) in bs.source
+    assert bs.load_source.startswith("path:")
+    assert str(EXAMPLE_PATH) in bs.load_source
 
 
 def test_A3_example_identity():
@@ -141,7 +141,7 @@ def test_A5_example_has_all_six_canonical_constraints():
 def test_B1_raw_yaml_string(monkeypatch):
     import yaml
     bs = load_bootstrap(source=yaml.safe_dump(_make_minimal_cgp(identity={"agent": "yaml-agent", "role": "critic"})))
-    assert bs.source == "raw"
+    assert bs.load_source == "raw"
     assert bs.identity.agent == "yaml-agent"
     assert bs.identity.role == "critic"
 
@@ -159,7 +159,7 @@ def test_B3_env_var_PMOVES_BOOTSTRAP_CGP(monkeypatch):
     )
     bs = load_bootstrap()
     assert bs.meta.operator == "env"
-    assert bs.source == "env:PMOVES_BOOTSTRAP_CGP"
+    assert bs.load_source == "env:PMOVES_BOOTSTRAP_CGP"
 
 
 def test_B4_env_var_PMOVES_BOOTSTRAP_CGP_PATH(tmp_path, monkeypatch):
@@ -213,7 +213,7 @@ def test_D1_stub_when_no_cgp(monkeypatch):
     import pmoves_bootstrap.loader as loader_mod
     monkeypatch.setattr(loader_mod, "EXAMPLE_PATH", Path("/nonexistent/path/example.cgp.yaml"))
     bs = load_bootstrap()
-    assert bs.source == "stub:no-cgp"
+    assert bs.load_source == "stub:no-cgp"
     assert bs.identity.agent == "unknown"
 
 
@@ -337,6 +337,22 @@ def test_G6_registry_is_populated_at_import():
     assert "gh" in PMOVES_TOOL_REGISTRY
     assert "comfyui_client" in PMOVES_TOOL_REGISTRY
     assert "render_skin" in PMOVES_TOOL_REGISTRY
+
+
+def test_G7_non_string_tool_id_does_not_crash_bridge():
+    """Defense-in-depth: a malformed CGP might have non-string entries
+    in the tools array (e.g. an object {"inject": "evil"} or an int 42).
+    The bridge used to crash with TypeError on the `in disable` check.
+    After the fix, non-string entries are skipped silently."""
+    cgp = _make_minimal_cgp(tools=["gh", {"inject": "evil"}, 42, None])
+    bs = load_bootstrap(source=json.dumps(cgp))
+    # This should not raise TypeError anymore
+    result = register_pmoves_tools(bs=bs)
+    assert "gh" in result.registered
+    # The non-string entries land in skipped
+    skipped_strs = [str(s) for s in result.skipped]
+    assert any("inject" in s for s in skipped_strs)
+    assert any("42" in s for s in skipped_strs)
 
 
 # === H. SubscriberTests ======================================================

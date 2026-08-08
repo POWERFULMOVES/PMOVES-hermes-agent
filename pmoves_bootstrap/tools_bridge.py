@@ -192,6 +192,15 @@ def register_pmoves_tools(
     result = BridgeResult()
 
     for tool_id in bs.tools:
+        # Defense-in-depth: a malformed CGP might have non-string
+        # entries in the tools array (e.g. an object {"inject": "evil"}).
+        # Skip them to the `skipped` bucket rather than crashing the
+        # bridge with a TypeError. Per the verifier's review of
+        # PR #4, this was previously a hard crash.
+        if not isinstance(tool_id, str):
+            result.skipped.append(tool_id)  # type: ignore[arg-type]
+            LOG.warning("PMOVES tool entry is not a string (%r); skipping", tool_id)
+            continue
         if tool_id in disable:
             result.disabled.append(tool_id)
             continue
@@ -205,9 +214,12 @@ def register_pmoves_tools(
     if result.disabled:
         LOG.info("PMOVES tools disabled via PMOVES_TOOLS_DISABLE: %s", sorted(result.disabled))
     if result.skipped:
+        # key=str to handle non-string entries (the bridge skips them
+        # to `skipped` rather than crashing; sorting mixed-type lists
+        # would TypeError on `int < str` comparison).
         LOG.info(
             "PMOVES tools skipped (unknown to this bridge): %s",
-            sorted(result.skipped),
+            sorted(result.skipped, key=str),
         )
     LOG.info(
         "PMOVES tools registered: %d of %d in CGP",

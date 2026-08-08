@@ -26,11 +26,9 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Optional
 
 try:
     import yaml  # pyyaml (core dep)
@@ -97,7 +95,7 @@ class Bootstrap:
     routing: dict[str, Any] = field(default_factory=dict)
     constraints: list[str] = field(default_factory=list)
     super_nodes: list[Any] = field(default_factory=list)
-    source: str = "unknown"  # where the CGP came from (for logging)
+    load_source: str = "unknown"  # where the CGP came from (file/env/raw/default). NOT to be confused with `meta.source` (the CGP producer).
 
     # --- typed accessors ----------------------------------------------------
 
@@ -281,7 +279,7 @@ def _from_dict(obj: dict, source: str) -> Bootstrap:
         routing=dict(obj.get("routing", {})),
         constraints=list(obj.get("constraints", [])),
         super_nodes=list(obj.get("super_nodes", [])),
-        source=source,
+        load_source=source,
     )
 
 
@@ -291,7 +289,7 @@ def stub_bootstrap() -> Bootstrap:
     The stub carries all 6 canonical constraints (so the consumer's
     non-breaking test pair still holds) but has empty tools, empty
     services, and an ``unknown`` identity. The orchestrator can detect
-    the stub by checking ``bootstrap.source == "stub:no-cgp"``.
+    the stub by checking ``bootstrap.load_source == "stub:no-cgp"``.
     """
     return Bootstrap(
         spec=PROFILE,
@@ -313,7 +311,7 @@ def stub_bootstrap() -> Bootstrap:
         routing={},
         constraints=list(VALID_CONSTRAINTS),
         super_nodes=[],
-        source="stub:no-cgp",
+        load_source="stub:no-cgp",
     )
 
 

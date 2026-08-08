@@ -43,7 +43,7 @@ participate in the multi-agent orchestrator loop via NATS.
 - `pmoves_bootstrap/cgp_schema/example.cgp.yaml` — vendored YAML
   example (Hermes has `pyyaml` in its core deps, so YAML is the
   natural format)
-- `tests/test_pmoves_bootstrap.py` — 31 tests, 9 test groups
+- `tests/test_pmoves_bootstrap.py` - 33 tests, 9 test groups
 - `pmoves_bootstrap/README.md` — this file
 
 ## Non-breaking contract

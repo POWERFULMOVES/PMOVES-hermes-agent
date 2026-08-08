@@ -32,3 +32,8 @@ docker/entrypoint.sh text eol=lf
 *.html  text eol=lf
 *.svg   text eol=lf
 *.ps1   text eol=crlf
+
+# Vendored CGP schema in the pmoves_bootstrap package: keep LF so the
+# SHA-256 byte-compare against the canonical PMOVES.AI copy does not
+# produce a false-positive drift signal on Windows checkouts.
+pmoves_bootstrap/cgp_schema/*.json text eol=lf

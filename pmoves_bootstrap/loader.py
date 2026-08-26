@@ -28,7 +28,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 try:
     import yaml  # pyyaml (core dep)
@@ -245,8 +245,18 @@ def _validate_cgp(obj: dict) -> None:
         )
 
     for key in ("tools", "mcps", "constraints"):
-        if not isinstance(obj[key], list):
+        items = obj[key]
+        if not isinstance(items, list):
             raise BootstrapError(f"CGP {key} must be a list")
+        # Item type: the schema requires string items. Non-string items
+        # would otherwise pass validation and crash later in
+        # export_env()'s ",".join(...) with a TypeError.
+        for item in items:
+            if not isinstance(item, str):
+                raise BootstrapError(
+                    f"CGP {key} must contain only string items; "
+                    f"got {type(item).__name__}: {item!r}"
+                )
     for key in ("services", "routing"):
         if not isinstance(obj[key], dict):
             raise BootstrapError(f"CGP {key} must be a dict")
@@ -329,6 +339,12 @@ def load_bootstrap(
     3. env var            - PMOVES_BOOTSTRAP_CGP (raw) or PMOVES_BOOTSTRAP_CGP_PATH (file)
     4. default example    - the vendored example.cgp.yaml
 
+    The four sources are resolved LAZILY, in priority order: each
+    candidate is only read when the loop reaches it, so a malformed
+    lower-priority source (e.g. a bad ``PMOVES_BOOTSTRAP_CGP`` env
+    var) can never prevent a valid higher-priority source (an
+    explicit ``path`` or ``source``) from being returned.
+
     Returns a Bootstrap. If no CGP is found anywhere, returns the stub.
     Raises ``BootstrapError`` only on parse/validation failures of a
     CGP that was explicitly provided (path or source) AND ``strict=True``.
@@ -336,14 +352,24 @@ def load_bootstrap(
     and the loader falls through to the next source (matching the
     PMOVES.AI side behavior).
     """
-    candidates: list[Optional[tuple[dict, str]]] = [
-        _read_path(path) if path else None,
-        _read_source(source) if source else None,
-        _read_env(),
-        _read_default(),
+    candidate_fns: list[Callable[[], Optional[tuple[dict, str]]]] = [
+        lambda: _read_path(path) if path else None,
+        lambda: _read_source(source) if source else None,
+        _read_env,
+        _read_default,
     ]
     last_err: Optional[Exception] = None
-    for cand in candidates:
+    for candidate_fn in candidate_fns:
+        try:
+            cand = candidate_fn()
+        except BootstrapError as err:
+            # Read/parse failure of a candidate is a validation-style
+            # failure: record it and fall through to the next source.
+            last_err = err
+            if strict and (path or source):
+                raise
+            LOG.debug("CGP candidate read failed: %s", err)
+            continue
         if cand is None:
             continue
         obj, src = cand

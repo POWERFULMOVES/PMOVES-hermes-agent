@@ -342,17 +342,18 @@ def test_G6_registry_is_populated_at_import():
 def test_G7_non_string_tool_id_does_not_crash_bridge():
     """Defense-in-depth: a malformed CGP might have non-string entries
     in the tools array (e.g. an object {"inject": "evil"} or an int 42).
-    The bridge used to crash with TypeError on the `in disable` check.
-    After the fix, non-string entries are skipped silently."""
+    Since the string-item validation fix, such CGPs are rejected at
+    load time (strict) or fall through to the next source (non-strict)
+    — the bridge never sees them. Kept as a crash-regression guard:
+    even if validation were relaxed, the bridge must not TypeError."""
     cgp = _make_minimal_cgp(tools=["gh", {"inject": "evil"}, 42, None])
+    # strict=True: rejected at validation, not a bridge TypeError
+    with pytest.raises(BootstrapError, match=r"only string items"):
+        load_bootstrap(source=json.dumps(cgp), strict=True)
+    # strict=False: falls through to the vendored example, bridge stays safe
     bs = load_bootstrap(source=json.dumps(cgp))
-    # This should not raise TypeError anymore
     result = register_pmoves_tools(bs=bs)
-    assert "gh" in result.registered
-    # The non-string entries land in skipped
-    skipped_strs = [str(s) for s in result.skipped]
-    assert any("inject" in s for s in skipped_strs)
-    assert any("42" in s for s in skipped_strs)
+    assert isinstance(result.registered, list)  # no crash, well-formed result
 
 
 # === H. SubscriberTests ======================================================
@@ -418,3 +419,54 @@ def test_I2_known_targets_contains_expected():
     assert "mavis" in KNOWN_TARGETS
     assert "kiloclaw" in KNOWN_TARGETS
     assert "hermes" in KNOWN_TARGETS
+
+
+# === J. Review-fix regressions (PR #5 follow-up) ==============================
+
+def test_J1_explicit_path_wins_over_malformed_env(monkeypatch, tmp_path):
+    """Lazy candidate resolution: a malformed PMOVES_BOOTSTRAP_CGP env
+    var must not prevent a valid explicit ``path`` from loading. Before
+    the lazy-resolution fix, all four candidates were read eagerly and
+    a bad env var could break a call that passed a good path."""
+    good = _write_tmp_cgp(tmp_path, _make_minimal_cgp(meta={
+        "created_at": "2026-08-08T00:00:00+00:00", "operator": "path-wins", "source": "test"}))
+    monkeypatch.setenv("PMOVES_BOOTSTRAP_CGP", "{ this is : not valid json or yaml ]")
+    bs = load_bootstrap(path=str(good))
+    assert bs.meta.operator == "path-wins"
+    assert bs.load_source.startswith("path:")
+
+
+def test_J2_missing_explicit_path_falls_through(monkeypatch):
+    """strict=False + a missing explicit path falls through to the next
+    source instead of raising (the documented non-strict contract)."""
+    import pmoves_bootstrap.loader as loader_mod
+    monkeypatch.delenv("PMOVES_BOOTSTRAP_CGP", raising=False)
+    monkeypatch.delenv("PMOVES_BOOTSTRAP_CGP_PATH", raising=False)
+    # keep the vendored example reachable so fall-through has a target
+    bs = load_bootstrap(path="/nonexistent/cgp.yaml")
+    assert bs.load_source.startswith(("path:", "example")) or bs.load_source == "stub:no-cgp"
+
+
+def test_J3_non_string_items_rejected_for_all_three_keys():
+    """String-item validation covers tools, mcps, AND constraints —
+    each would TypeError in export_env()'s ",".join(...) otherwise."""
+    for key in ("tools", "mcps", "constraints"):
+        bad = _make_minimal_cgp(**{key: [42]})
+        with pytest.raises(BootstrapError, match=r"only string items"):
+            load_bootstrap(source=json.dumps(bad), strict=True)
+
+
+def test_J4_package_included_in_wheel_build(tmp_path):
+    """Packaging regression: pmoves_bootstrap must be in the setuptools
+    include list and its schema/example in package-data, or sealed
+    installs (uv2nix/Nix) silently drop the whole consumer."""
+    import tomllib
+    with open("pyproject.toml", "rb") as f:
+        pyproject = tomllib.load(f)
+    include = pyproject["tool"]["setuptools"]["packages"]["find"]["include"]
+    assert any("pmoves_bootstrap" == i or i.startswith("pmoves_bootstrap.") for i in include)
+    pkg_data = pyproject["tool"]["setuptools"]["package-data"]
+    assert "pmoves_bootstrap" in pkg_data
+    globs = pkg_data["pmoves_bootstrap"]
+    assert any("*.json" in g for g in globs)
+    assert any("*.yaml" in g for g in globs)

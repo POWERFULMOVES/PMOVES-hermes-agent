@@ -396,10 +396,15 @@ py-modules = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["agent", "agent.*", "tools", "tools.*", "hermes_cli", "hermes_cli.*", "gateway", "gateway.*", "tui_gateway", "tui_gateway.*", "cron", "cron.*", "acp_adapter", "plugins", "plugins.*", "providers", "providers.*"]
+include = ["agent", "agent.*", "tools", "tools.*", "hermes_cli", "hermes_cli.*", "gateway", "gateway.*", "tui_gateway", "tui_gateway.*", "cron", "cron.*", "acp_adapter", "plugins", "plugins.*", "providers", "providers.*", "pmoves_bootstrap", "pmoves_bootstrap.*"]
 
 [tool.setuptools.package-data]
 hermes_cli = ["observability/schemas/*.json"]
+# pmoves_bootstrap vendors the CGP v1 schema + example. Without this,
+# sealed venvs (uv2nix/Nix) silently lose both — the loader falls back
+# to the stub and the SHA-256 drift-compare against the canonical
+# PMOVES.AI copy can never run. Loaded via SCHEMA_PATH/EXAMPLE_PATH.
+pmoves_bootstrap = ["cgp_schema/*.json", "cgp_schema/*.yaml"]
 # gateway/assets/ ships status_phrases.yaml and the Telegram BotFather
 # screenshot. Without this, sealed venvs (uv2nix) silently lose both —
 # status phrases fall back to the tiny hardcoded set and the Telegram

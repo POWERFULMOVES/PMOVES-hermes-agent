@@ -23,6 +23,11 @@ jobs:
 
       - name: Check for unmapped contributor emails
         id: check-emails
+        # env indirection, not inline ${{ }} in run: — base.ref is
+        # event-controlled; interpolating it straight into the shell is
+        # the classic expression-injection pattern. Read it as $BASE_REF.
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           # Scan range = THIS PR's base branch, not hardcoded origin/main.
           # The fork has two long-lived bases (main for upstream syncs,
@@ -33,10 +38,11 @@ jobs:
           # never contributed to this fork. The PR's actual base is the
           # semantically correct root: merge-base(<base>, HEAD)..HEAD is
           # exactly the commits this PR adds on top of what it targets.
-          BASE_REF="${{ github.event.pull_request.base.ref }}"
           if [ -n "$BASE_REF" ]; then
-            # pull_request event: use the real base branch
-            git fetch origin "$BASE_REF" --quiet
+            # pull_request event: fetch the real base branch. Explicit
+            # refspec so refs/remotes/origin/$BASE_REF is guaranteed to
+            # exist afterward (not left to opportunistic ref updates).
+            git fetch origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF" --quiet
             BASE="origin/$BASE_REF"
           else
             # push/dispatch (post-merge validation): fall back to main

@@ -9,7 +9,9 @@ you are about to push:
     python3 scripts/audit_pr_attribution.py --fix      # create mapping files
 
 Logic (kept in sync with contributor-check.yml):
-  - scans ``git log $(git merge-base origin/main HEAD)..HEAD --format=%ae``
+  - scans ``git log $(git merge-base origin/<PR-base> HEAD)..HEAD --format=%ae``
+    (the PR's ACTUAL base branch — main for syncs, hardened for feature PRs —
+    so upstream authors merged via sync PRs are never flagged here)
   - skips teknium/bot emails and ``<id>+<login>@users.noreply.github.com``
     (CI auto-resolves those)
   - everything else must have ``contributors/emails/<email>`` or a legacy
@@ -56,8 +58,21 @@ def run(*args: str, check: bool = True) -> str:
 
 
 def new_emails() -> list[str]:
-    base = run("git", "merge-base", "origin/main", "HEAD")
-    log = run("git", "log", f"{base}..HEAD", "--format=%ae", "--no-merges", check=False)
+    # Scan range = the PR's actual base branch, not hardcoded origin/main
+    # (kept in sync with contributor-check.yml). The fork has two bases
+    # (main for syncs, PMOVES.AI-Edition-Hardened for the submodule pin);
+    # hardcoding main made hardened PRs scan the whole upstream delta.
+    base_ref = run(
+        "gh", "pr", "view", "--json", "baseRefName",
+        "--jq", ".baseRefName", check=False,
+    )
+    base = run(
+        "git", "merge-base",
+        f"origin/{base_ref}" if base_ref else "origin/main",
+        "HEAD",
+    )
+    log = run("git", "log", "--first-parent", f"{base}..HEAD",
+              "--format=%ae", "--no-merges", check=False)
     return sorted({e for e in log.splitlines() if e.strip()})
 
 

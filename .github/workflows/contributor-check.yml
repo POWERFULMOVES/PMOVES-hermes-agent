@@ -24,11 +24,35 @@ jobs:
       - name: Check for unmapped contributor emails
         id: check-emails
         run: |
-          # Get the merge base between this PR and main
-          MERGE_BASE=$(git merge-base origin/main HEAD)
+          # Scan range = THIS PR's base branch, not hardcoded origin/main.
+          # The fork has two long-lived bases (main for upstream syncs,
+          # PMOVES.AI-Edition-Hardened for the submodule pin). Hardcoding
+          # origin/main made every hardened-branch PR scan the entire
+          # upstream delta embedded in hardened (~24k commits at the Aug
+          # 2026 sync) and demand mappings for upstream authors who have
+          # never contributed to this fork. The PR's actual base is the
+          # semantically correct root: merge-base(<base>, HEAD)..HEAD is
+          # exactly the commits this PR adds on top of what it targets.
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          if [ -n "$BASE_REF" ]; then
+            # pull_request event: use the real base branch
+            git fetch origin "$BASE_REF" --quiet
+            BASE="origin/$BASE_REF"
+          else
+            # push/dispatch (post-merge validation): fall back to main
+            BASE="origin/main"
+          fi
+          MERGE_BASE=$(git merge-base "$BASE" HEAD)
 
-          # Find any new author emails in this PR's commits
-          NEW_EMAILS=$(git log ${MERGE_BASE}..HEAD --format='%ae' --no-merges | sort -u)
+          # --first-parent: count only commits on this branch's own
+          # first-parent line. For a sync PR, the upstream history
+          # arrives via the merge's SECOND parent — it must not be
+          # scanned, those authors are upstream's, not this fork's.
+          # (Fork-authored conflict-resolution commits land after the
+          # merge on the first-parent line and are still counted.)
+          # --no-merges: merge commits themselves carry no unique
+          # authorship.
+          NEW_EMAILS=$(git log --first-parent ${MERGE_BASE}..HEAD --format='%ae' --no-merges | sort -u)
 
           if [ -z "$NEW_EMAILS" ]; then
             echo "No new commits to check."

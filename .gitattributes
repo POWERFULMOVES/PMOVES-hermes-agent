@@ -8,3 +8,7 @@ web/package-lock.json linguist-generated=true
 Dockerfile  text eol=lf
 *.dockerfile text eol=lf
 docker/entrypoint.sh text eol=lf
+# Vendored CGP schema in the pmoves_bootstrap package: keep LF so the
+# SHA-256 byte-compare against the canonical PMOVES.AI copy doesn't
+# produce a false-positive drift signal on Windows checkouts.
+pmoves_bootstrap/cgp_schema/*.json text eol=lf

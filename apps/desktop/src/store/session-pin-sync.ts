@@ -314,20 +314,3 @@ export function resetSessionPinMirror(): void {
   unconfirmed.clear()
   publishUnconfirmed()
 }
-
-/**
- * Forget what we've mirrored, because the backend we mirrored it TO is gone.
- *
- * `mirrored` / `pending` / `unconfirmed` all mean "relative to the gateway we
- * are talking to". After a soft switch the next backend has its own state.db
- * and has never seen these pins, but `mirrored` would report them as already
- * pushed and suppress the PATCHes — so the user's pins silently fail to reach
- * the new gateway (and its auto-archive sweep is free to hide them). Dropping
- * the bookkeeping makes the next reconcile re-assert the whole set, which is
- * the same path that migrates pre-existing pins at boot.
- */
-export function resetSessionPinMirror(): void {
-  mirrored.clear()
-  pending.clear()
-  unconfirmed.clear()
-}

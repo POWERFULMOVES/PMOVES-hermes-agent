@@ -904,29 +904,6 @@ def _state_db_write_guard(request, monkeypatch):
 # without this fixture.
 
 
-@pytest.fixture(autouse=True)
-def _state_db_write_guard(request, monkeypatch):
-    _hs = sys.modules.get("hermes_state")
-    if _hs is None or not hasattr(_hs, "_STATE_DB_GUARD_BYPASS"):
-        yield
-        return
-    if request.node.get_closest_marker("live_system_guard_bypass") is not None:
-        monkeypatch.setattr(_hs, "_STATE_DB_GUARD_BYPASS", True)
-        yield
-        return
-    extra_roots = []
-    if _PRE_SANDBOX_HERMES_HOME and not _hermes_home_points_at_production(
-        _PRE_SANDBOX_HERMES_HOME
-    ):
-        extra_roots.append(
-            Path(_PRE_SANDBOX_HERMES_HOME).expanduser().resolve()
-        )
-    monkeypatch.setattr(
-        _hs, "_STATE_DB_GUARD_EXTRA_DENY_ROOTS", tuple(extra_roots)
-    )
-    yield
-
-
 # ── Module-level state reset — replaced by per-file process isolation ──────
 #
 # Each test FILE runs in a freshly-spawned ``python -m pytest <file>``

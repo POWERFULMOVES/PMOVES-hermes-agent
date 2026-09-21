@@ -39,6 +39,19 @@ jobs:
             git checkout --ours -- "$f" 2>/dev/null || true
             git add -A -- "$f" 2>/dev/null || true
           done
+          # PMOVES-side files on either modify/delete direction: absence
+          # upstream is NOT deletion intent for the overlay line. Porcelain
+          # UD (deleted by them, modified by us — worktree already holds our
+          # version) and DU (deleted by us) both resolve keep-ours via add.
+          # Live exhibit, run 35601995517: CONFLICT (modify/delete)
+          # tests/test_sqlite_wal_reset_gate.py — pairs with the overlay's
+          # "fix(db): never downgrade journal mode" commit; upstream
+          # refactored it away, the overlay still needs it.
+          git status --porcelain | grep -E '^(UD|DU)' | cut -c4- | while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            echo "keeping PMOVES-side (modify/delete): $f"
+            git add -- "$f"
+          done
           # PMOVES overlay scripts dir
           git diff --name-only --diff-filter=U | while IFS= read -r f; do
             [ -z "$f" ] && continue

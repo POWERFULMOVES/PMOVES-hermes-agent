@@ -1,0 +1,77 @@
+# hardened-sync — registry-first sync pilot (DARKXSIDE doctrine: load the dice first)
+# Runs the PMOVES.AI-Edition-Hardened <- main reconciliation on GitHub runners,
+# where fork connectivity is native. Provenance: 2026-09-20 session, PR #8 pilot,
+# danger-room/anti-patterns.md rooms `stale-checkout-heal` + `phantom-deliverable`.
+# Resolution policy: -X theirs (main wins hunks); PMOVES allowlist keeps Hardened.
+name: hardened-sync
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'Overlay branch to update'
+        required: false
+        default: 'PMOVES.AI-Edition-Hardened'
+      source:
+        description: 'Branch to merge in'
+        required: false
+        default: 'main'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.base }}
+          fetch-depth: 0
+
+      - name: Merge source with resolution policy
+        run: |
+          git config user.email "powerfulmoves@pmoves.ai"
+          git config user.name "PMOVES"
+          git fetch origin "${{ inputs.source }}"
+          git merge -X theirs "origin/${{ inputs.source }}" --no-edit || true
+          # PMOVES allowlist: these keep the Hardened side on conflict
+          ALLOW=".gitattributes .mailmap AGENTS.md .github/workflows/contributor-check.yml"
+          for f in $ALLOW; do
+            git checkout --ours -- "$f" 2>/dev/null || true
+            git add -A -- "$f" 2>/dev/null || true
+          done
+          # PMOVES overlay scripts dir
+          git diff --name-only --diff-filter=U | while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              .github/scripts/*) git checkout --ours -- "$f" 2>/dev/null || true ;;
+            esac
+            git add -A -- "$f" 2>/dev/null || true
+          done
+          N=$(git diff --name-only --diff-filter=U | wc -l)
+          echo "remaining unmerged: $N"
+          if [ "$N" -gt 0 ]; then
+            git diff --name-only --diff-filter=U
+            echo "::error::Unresolved conflicts remain — failing loudly"
+            exit 1
+          fi
+          # Conclude a conflicted merge: resolutions are staged but HEAD is
+          # still pre-merge until committed. No-op when merge auto-committed.
+          # Without this, the push below would ship the OLD tip while
+          # reporting success — the phantom-deliverable anti-pattern.
+          if [ -f .git/MERGE_HEAD ]; then git commit --no-edit; fi
+
+      - name: Verify merge actually concluded
+        run: |
+          PARENTS=$(git cat-file -p HEAD | grep -c '^parent ')
+          echo "HEAD parents: $PARENTS"
+          if [ "$PARENTS" -lt 2 ]; then
+            echo "::error::HEAD has $PARENTS parent(s) — no merge commit; refusing to push"
+            exit 1
+          fi
+
+      - name: Push resolved branch
+        run: |
+          BR="sync/hardened-resolved-${{ github.run_number }}"
+          git push origin "HEAD:refs/heads/$BR"
+          echo "RESOLVED_BRANCH=$BR" >> "$GITHUB_ENV"
+          echo "pushed $BR"

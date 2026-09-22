@@ -888,6 +888,22 @@ def _state_db_write_guard(request, monkeypatch):
     yield
 
 
+# ── Live state.db write guard ───────────────────────────────────────────────
+# Companion to the kanban guard above, for the MAIN state database.
+# ``hermes_state._ensure_test_isolation`` (the single choke point every
+# ``SessionDB()`` construction goes through) refuses, under pytest, any DB
+# path that resolves inside the REAL Hermes root. This fixture wires the
+# test-side knobs:
+#   • honors ``@pytest.mark.live_system_guard_bypass`` (the established
+#     escape-hatch marker) by disabling the state-db guard for that test;
+#   • injects the pre-sandbox CUSTOM production root (Docker/portable
+#     installs where HERMES_HOME is not ~/.hermes) into the guard's
+#     deny-list, mirroring the kanban deny-list capture above.
+# The guard itself is env-activated (PYTEST_CURRENT_TEST / PYTEST_VERSION),
+# so subprocess children that import hermes_state directly are covered even
+# without this fixture.
+
+
 # ── Module-level state reset — replaced by per-file process isolation ──────
 #
 # Each test FILE runs in a freshly-spawned ``python -m pytest <file>``

@@ -2626,6 +2626,7 @@ def test_consume_codex_stream_leaves_unindexed_reasoning_untouched():
 
     assert "".join(reasoning_streamed) == "Need to inspect files."
 
+    reasoning_streamed = []
 
 def _codex_compaction_checkpoint_response(blob: str = "compaction_blob_1"):
     """A turn that returns ONLY a server-side native-compaction checkpoint.

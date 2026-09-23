@@ -62,6 +62,7 @@ class TestSchemaReadProbeStatements:
         """
         conn = _fresh_schema_conn()
         try:
+            conn.execute("DROP INDEX IF EXISTS idx_sessions_effective_activity")
             conn.execute("ALTER TABLE sessions DROP COLUMN last_activity_at")
             # The failure must come from the sessions probe naming the exact
             # column — not incidentally from some other statement — so a

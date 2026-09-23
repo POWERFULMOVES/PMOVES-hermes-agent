@@ -703,5 +703,10 @@
     "path": "tools/computer_use/cua_backend_driver.py",
     "symbol": "_candidate_cua_driver_commands",
     "kind": "known_path_table"
+  },
+  {
+    "path": "pmoves_bootstrap/tools_bridge.py",
+    "symbol": "_resolve_cli_tool.<locals>._call",
+    "kind": "bare_which"
   }
 ]

@@ -1550,7 +1550,9 @@ def _profile_live_catalog(normalized: str) -> Optional[list[str]]:
         except Exception as exc:  # a failed subprocess launch degrades to the curated list, like api_key below
             logger.debug("external_process catalog fetch failed for %s: %s", normalized, exc)
             live = None
-        return list(live) if live else (list(profile.fallback_models) or None)
+        # Same merge as setup (`_model_flow_plugin_provider`) so /model, the Desktop picker and
+        # `hermes model` offer one list: live ids plus any pinned id the probe omitted.
+        return merge_profile_catalog(normalized, profile, list(live) if live else None)
     if not (profile.auth_type == "api_key" and profile.base_url):
         return list(profile.fallback_models) or None
     api_key, base_url = _api_key_credentials(normalized)
@@ -1710,9 +1712,12 @@ def _provider_models_cache_path() -> Path:
 
 
 def _credential_fingerprint(provider: str) -> str:
-    """Short hash of the credentials ``provider_model_ids(provider)`` would see right now: api-key /
-    base-url env vars from ``PROVIDER_REGISTRY`` plus the mtimes of ``auth.json`` and external
-    credential files (OAuth re-auth busts the cache without parsing every file shape)."""
+    """Short hash of the credentials ``provider_model_ids(provider)`` would see right now.
+
+    API-key providers include their configured values and credential-file mtimes. Codex uses the
+    stable principal selected by its read-only resolver: routine token and pool-state writes must
+    not discard an account-scoped catalog, while a real account switch must invalidate it.
+    """
     import hashlib
 
     parts: list[str] = []
@@ -1784,16 +1789,21 @@ def _credential_fingerprint(provider: str) -> str:
         except Exception:
             pass
 
-    try:
-        from hermes_constants import get_hermes_home
-        for rel in ("auth.json", "credentials.json"):
-            _mtime_part(rel, get_hermes_home() / rel)
-    except Exception:
-        pass
-    for rel in ("~/.codex/auth.json", "~/.claude/.credentials.json",
-                "~/.config/github-copilot/hosts.json", "~/.minimax/credentials.json"):
-        path = os.path.expanduser(rel)
-        _mtime_part(path, path)
+    if provider == "openai-codex":
+        from hermes_cli.codex_models import codex_catalog_credential_identity
+
+        parts.append(f"codex_identity={codex_catalog_credential_identity()}")
+    else:
+        try:
+            from hermes_constants import get_hermes_home
+            for rel in ("auth.json", "credentials.json"):
+                _mtime_part(rel, get_hermes_home() / rel)
+        except Exception:
+            pass
+        for rel in ("~/.codex/auth.json", "~/.claude/.credentials.json",
+                    "~/.config/github-copilot/hosts.json", "~/.minimax/credentials.json"):
+            path = os.path.expanduser(rel)
+            _mtime_part(path, path)
 
     blob = "|".join(parts).encode("utf-8", errors="replace")
     # blake2b, not sha256: fingerprint only (collisions = a harmless cache miss), and CodeQL's

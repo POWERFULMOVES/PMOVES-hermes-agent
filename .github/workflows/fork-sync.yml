@@ -32,7 +32,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  workflows: write
 
 concurrency:
   group: fork-sync
@@ -98,7 +97,8 @@ jobs:
           MB=$(git merge-base HEAD "$UPSTREAM_SHA")
           git diff --name-only "$MB" HEAD | sort -u > /tmp/overlay.txt
           echo "overlay footprint: $(wc -l < /tmp/overlay.txt) files"
-          git merge "$UPSTREAM_SHA" --no-edit || true
+          BASE_SHA=$(git rev-parse HEAD)
+          git merge --no-commit "$UPSTREAM_SHA" || true
           # resolution: overlay files keep ours; upstream canonical elsewhere
           git status --porcelain | grep -E '^(DD|AU|UD|UA|DU|AA|UU)' > /tmp/conflicts.txt || true
           while IFS= read -r row; do
@@ -128,6 +128,21 @@ jobs:
             echo "::error::Unresolved conflicts remain — failing loudly"
             exit 1
           fi
+          # workflows-guard: GITHUB_TOKEN cannot push workflow-file changes
+          # through this path (parser + push-gate receipts on PR #13). The fork
+          # keeps its own workflow line — upstream workflow churn never rides
+          # the sync.
+          git diff --name-only "$BASE_SHA" "$UPSTREAM_SHA" -- '.github/workflows/' > /tmp/wfchanges.txt
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            if git cat-file -e "$BASE_SHA:$f" 2>/dev/null; then
+              git checkout "$BASE_SHA" -- "$f"
+              echo "workflows-guard: kept ours — $f"
+            else
+              git rm -q -- "$f" 2>/dev/null || true
+              echo "workflows-guard: dropped upstream-added — $f"
+            fi
+          done < /tmp/wfchanges.txt
           # release-watch state rides the merge commit (lands on main when the
           # operator merges the resolved PR; until then the open resolved
           # branch suppresses re-ticking)

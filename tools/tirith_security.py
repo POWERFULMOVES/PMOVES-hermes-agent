@@ -516,14 +516,17 @@ def check_command_security(command: str) -> dict:
     cfg = _load_security_config()
     if not cfg["tirith_enabled"]:
         return _verdict("allow")
-    # Circuit breaker: if tirith has crashed _CRASH_LIMIT times in a row, stop trying and fail open (issue
-    # #41400). After _CIRCUIT_RETRY_S the breaker half-opens: exactly one caller claims the probe slot —
-    # claiming re-arms _circuit_open_at under _breaker_lock, so concurrent callers see a fresh TTL and stay
-    # fail-open — and falls through to a real scan below.
+    # Circuit breaker: if tirith has crashed _CRASH_LIMIT times in a row, stop spawning it (issue #41400) and
+    # answer by policy: allow when tirith_fail_open, block when not. The breaker exists to stop the retry
+    # loop, not to change the verdict; returning allow here made fail-closed configs fail open for the
+    # whole window after three failures. After _CIRCUIT_RETRY_S the breaker half-opens: exactly one caller
+    # claims the probe slot — claiming re-arms _circuit_open_at under _breaker_lock, so concurrent callers see
+    # a fresh TTL and keep getting the policy verdict without spawning — and falls through to a real scan.
     if _circuit_open:
         with _breaker_lock:
             if _circuit_open and time.monotonic() - _circuit_open_at < _CIRCUIT_RETRY_S:
-                return _verdict("allow", "tirith disabled (circuit breaker)")
+                return _fail(cfg["tirith_fail_open"], "tirith disabled (circuit breaker)",
+                             "tirith disabled by circuit breaker (fail-closed)")
             if _circuit_open:  # TTL expired: claim the single-flight probe slot for this window
                 _circuit_open_at = time.monotonic()
                 logger.info("tirith circuit breaker half-open: probing after %ds", _CIRCUIT_RETRY_S)

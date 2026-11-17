@@ -94,13 +94,34 @@ _warned_lock = threading.Lock()
 _MARKER_TTL = 86400  # disk failure marker validity (24h) -- avoids retry across restarts
 
 
-def _record_tirith_crash() -> None:
+# Routed profiles keep their own breaker, like their own resolved path: each has its own binary and its own
+# fail-open policy, so one profile's broken tirith must not decide another profile's verdict. The launch
+# profile keeps the module globals above. Value: (crash_count, circuit_open, circuit_open_at).
+_breaker_by_home: dict[str, tuple[int, bool, float]] = {}
+
+
+def _breaker_state() -> tuple[int, bool, float]:
+    if get_hermes_home_override() is not None:
+        return _breaker_by_home.get(hermes_home_key(), (0, False, 0.0))
+    return _crash_count, _circuit_open, _circuit_open_at
+
+
+def _set_breaker(crash_count: int, circuit_open: bool, circuit_open_at: float) -> None:
     global _crash_count, _circuit_open, _circuit_open_at
-    _crash_count += 1
-    if _crash_count >= _CRASH_LIMIT:
-        _circuit_open, _circuit_open_at = True, time.monotonic()
+    if get_hermes_home_override() is not None:
+        _breaker_by_home[hermes_home_key()] = (crash_count, circuit_open, circuit_open_at)
+    else:
+        _crash_count, _circuit_open, _circuit_open_at = crash_count, circuit_open, circuit_open_at
+
+
+def _record_tirith_crash() -> None:
+    crash_count, circuit_open, circuit_open_at = _breaker_state()
+    crash_count += 1
+    if crash_count >= _CRASH_LIMIT:
+        circuit_open, circuit_open_at = True, time.monotonic()
         logger.warning("tirith circuit breaker opened after %d consecutive failures; "
-                       "disabling for %ds", _crash_count, _CIRCUIT_RETRY_S)
+                       "disabling for %ds", crash_count, _CIRCUIT_RETRY_S)
+    _set_breaker(crash_count, circuit_open, circuit_open_at)
 
 
 def _warn_once(key: str, message: str, *args) -> None:
@@ -512,7 +533,6 @@ def _crash(fail_open: bool, open_summary: str, closed_summary: str) -> dict:
 def check_command_security(command: str) -> dict:
     """Run the tirith scan on a command -> ``{"action": allow|warn|block, "findings", "summary"}``.
     Exit code determines the action; JSON enriches. Spawn failures/timeouts respect fail_open."""
-    global _crash_count, _circuit_open, _circuit_open_at
     cfg = _load_security_config()
     if not cfg["tirith_enabled"]:
         return _verdict("allow")
@@ -522,13 +542,14 @@ def check_command_security(command: str) -> dict:
     # whole window after three failures. After _CIRCUIT_RETRY_S the breaker half-opens: exactly one caller
     # claims the probe slot — claiming re-arms _circuit_open_at under _breaker_lock, so concurrent callers see
     # a fresh TTL and keep getting the policy verdict without spawning — and falls through to a real scan.
-    if _circuit_open:
+    if _breaker_state()[1]:
         with _breaker_lock:
-            if _circuit_open and time.monotonic() - _circuit_open_at < _CIRCUIT_RETRY_S:
+            crash_count, circuit_open, circuit_open_at = _breaker_state()
+            if circuit_open and time.monotonic() - circuit_open_at < _CIRCUIT_RETRY_S:
                 return _fail(cfg["tirith_fail_open"], "tirith disabled (circuit breaker)",
                              "tirith disabled by circuit breaker (fail-closed)")
-            if _circuit_open:  # TTL expired: claim the single-flight probe slot for this window
-                _circuit_open_at = time.monotonic()
+            if circuit_open:  # TTL expired: claim the single-flight probe slot for this window
+                _set_breaker(crash_count, True, time.monotonic())
                 logger.info("tirith circuit breaker half-open: probing after %ds", _CIRCUIT_RETRY_S)
     # No binary for this platform, ever: skip the resolver so we never spawn.
     if not is_platform_supported():
@@ -561,9 +582,9 @@ def check_command_security(command: str) -> dict:
     # Any completed scan (allow/block/warn) proves the binary is healthy: clear the streak and close the
     # breaker. This is the half-open probe's recovery path, and it also fixes the streak never resetting on
     # block/warn verdicts.
-    _crash_count = 0
-    if _circuit_open:
-        _circuit_open, _circuit_open_at = False, 0.0
+    was_open = _breaker_state()[1]
+    _set_breaker(0, False, 0.0)
+    if was_open:
         logger.info("tirith circuit breaker closed after successful probe")
     # JSON enriches findings/summary; a parse failure never changes the verdict.
     findings, summary = [], ""

@@ -807,6 +807,10 @@ class TestImageApiSurface:
         from plugins.image_gen.openrouter import _IMAGE_API_MODELS, _build_providers
 
         by_name = {p.name: p for p in _build_providers()}
+        # The static surface, not whatever the live catalogs list today (they drop models).
+        for provider in by_name.values():
+            provider._image_api_live_models = lambda: []
+            provider._live_models = lambda: []
         openrouter_ids = {m["id"] for m in by_name["openrouter"].list_models()}
         nous_ids = {m["id"] for m in by_name["nous"].list_models()}
         assert "openai/gpt-image-2" in openrouter_ids

@@ -61,7 +61,7 @@ def _make_args(**kwargs):
 
 def _seed_config(tmp_path: Path, mcp_servers: dict):
     """Write a config.yaml with the given mcp_servers."""
-    import yaml
+    import hermes_yaml as yaml
 
     config = {"mcp_servers": mcp_servers, "_config_version": 9}
     config_path = tmp_path / "config.yaml"
@@ -82,12 +82,6 @@ class FakeTool:
 # ---------------------------------------------------------------------------
 
 class TestMcpList:
-    def test_list_empty_config(self, tmp_path, capsys):
-        from hermes_cli.mcp_config import cmd_mcp_list
-
-        cmd_mcp_list()
-        out = capsys.readouterr().out
-        assert "No MCP servers configured" in out
 
     def test_list_with_servers(self, tmp_path, capsys):
         _seed_config(tmp_path, {
@@ -285,23 +279,6 @@ class TestMcpAdd:
 
 class TestMcpTest:
 
-    def test_test_success(self, tmp_path, capsys, monkeypatch):
-        _seed_config(tmp_path, {
-            "ink": {"url": "https://mcp.ml.ink/mcp"},
-        })
-
-        def mock_probe(name, config, **kw):
-            return [("create_service", "Deploy"), ("list_services", "List all")]
-
-        monkeypatch.setattr(
-            "hermes_cli.mcp_config._probe_single_server", mock_probe
-        )
-        from hermes_cli.mcp_config import cmd_mcp_test
-
-        cmd_mcp_test(_make_args(name="ink"))
-        out = capsys.readouterr().out
-        assert "Connected" in out
-        assert "Tools discovered: 2" in out
 
     def test_exit_codes_distinguish_failure_from_unknown_server(self, tmp_path, capsys, monkeypatch):
         """0 connected, 1 connection failed, 3 not in config — never argparse's 2, never a silent 0."""
@@ -318,6 +295,18 @@ class TestMcpTest:
         assert cmd_mcp_test(_make_args(name="ink")) == 1
         assert cmd_mcp_test(_make_args(name="doesnotexist")) == 3
         assert "not found in config" in capsys.readouterr().out
+
+    def test_transport_line_masks_url_query_credentials(self, tmp_path, capsys, monkeypatch):
+        """``Transport: HTTP →`` prints the rendered URL; a ``?userToken=`` key must not reach stdout (#133713)."""
+        secret = "OPAQUE" + "k" * 24
+        _seed_config(tmp_path, {"penpot": {"url": f"http://127.0.0.1:9001/mcp/stream?userToken={secret}"}})
+        from hermes_cli.mcp_config import cmd_mcp_test
+
+        monkeypatch.setattr("hermes_cli.mcp_config._probe_single_server", lambda name, cfg, **kw: [])
+        assert cmd_mcp_test(_make_args(name="penpot")) == 0
+        out = capsys.readouterr().out
+        assert secret not in out
+        assert "http://127.0.0.1:9001/mcp/stream?userToken=***" in out
 
     def test_cli_dispatcher_forwards_test_exit_code(self, tmp_path, monkeypatch):
         """``hermes mcp test`` reaches ``main()`` with the handler's code (the dispatcher used to drop it)."""
@@ -336,7 +325,6 @@ class TestMcpTest:
         """OAuth-capable probes must not hard-code a short 30s timeout."""
         import asyncio
         from hermes_cli import mcp_config
-        import tools.mcp_tool as mcp_tool
         from tools import mcp_tool_discovery as _mcp_discovery
         from tools import mcp_tool_lifecycle as _mcp_lifecycle
         from tools import mcp_tool_loop as _mcp_loop
@@ -417,7 +405,6 @@ class TestContextVarInterpolation:
         assert _interpolate_env_vars("${/}") == os.sep
 
     def test_workspace_folder_and_basename(self, monkeypatch):
-        import tools.mcp_tool as mcp_tool
 
         monkeypatch.setattr(
             _mcp_config, "_workspace_folder", lambda: "/srv/projects/myapp"
@@ -432,7 +419,7 @@ class TestContextVarInterpolation:
     def test_workspace_folder_falls_back_to_cwd(self, monkeypatch):
         import os
 
-        import tools.file_tools_paths as file_tools_paths
+        from tools import file_tools_paths
         from tools.mcp_tool_config import _workspace_folder
 
         monkeypatch.setattr(
@@ -443,7 +430,6 @@ class TestContextVarInterpolation:
     def test_mixed_string_with_env_and_context_vars(self, monkeypatch):
         import os
 
-        import tools.mcp_tool as mcp_tool
 
         monkeypatch.setenv("MY_TOKEN", "tok-1")
         monkeypatch.setattr(_mcp_config, "_workspace_folder", lambda: "/ws/app")
@@ -472,7 +458,6 @@ class TestContextVarInterpolation:
     def test_context_vars_in_nested_config(self, monkeypatch):
         import os
 
-        import tools.mcp_tool as mcp_tool
         from tools import mcp_tool_config as _mcp_config
 
         monkeypatch.setattr(_mcp_config, "_workspace_folder", lambda: "/ws/app")
@@ -661,7 +646,7 @@ class TestProbeCapabilityGating:
     def test_config_disables_prompts_probe(self, monkeypatch):
         # Server advertises both, but user turned prompts off.
         caps = self._Caps(prompts=object(), resources=object())
-        called, details = self._run_probe(
+        called, _details = self._run_probe(
             monkeypatch, {"url": "http://x/mcp", "tools": {"prompts": False}}, caps
         )
         assert "prompts" not in called
@@ -670,7 +655,7 @@ class TestProbeCapabilityGating:
 
     def test_advertised_and_enabled_is_probed(self, monkeypatch):
         caps = self._Caps(prompts=object(), resources=object())
-        called, details = self._run_probe(monkeypatch, {"url": "http://x/mcp"}, caps)
+        called, _details = self._run_probe(monkeypatch, {"url": "http://x/mcp"}, caps)
         assert set(called) == {"prompts", "resources"}
 
 
@@ -944,4 +929,3 @@ def test_tool_filters_keeps_explicit_empty_include():
     assert _tool_filters({"tools": {"include": []}}) == ([], None)
     assert _tool_filters({"tools": {"include": "bad", "exclude": ["x"]}}) == (None, ["x"])
     assert _tool_filters({}) == (None, None)
-

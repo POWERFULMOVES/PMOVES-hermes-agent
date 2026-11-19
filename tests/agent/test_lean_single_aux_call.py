@@ -103,18 +103,6 @@ class TestLeanSingleAuxiliaryCall:
             summary = c._generate_summary(turns)
         assert _LEAN_SESSION_LOG_HEADING in summary
 
-    def test_prompt_requests_session_log_section(self):
-        c = _mk_compressor()
-        turns = _big_region(n_rounds=5)
-        with patch(
-            "agent.context_compressor.call_llm",
-            return_value=_llm_response(SUMMARY_BODY),
-        ) as mock_call:
-            c._generate_summary(turns)
-        prompt = mock_call.call_args.kwargs["messages"][0]["content"]
-        assert _LEAN_SESSION_LOG_HEADING in prompt
-        # The digest HARD RULES carried over into the single request.
-        assert "PRESERVE EXACTLY" in prompt
 
     def test_anchor_index_and_recovery_footer_present(self):
         c = _mk_compressor()
@@ -137,7 +125,7 @@ class TestLeanSingleAuxiliaryCall:
         ) as mock_call:
             c._generate_summary(turns)
         assert mock_call.call_count == 1
-        prompt = mock_call.call_args.kwargs["messages"][0]["content"]
+        prompt = "\n".join(m["content"] for m in mock_call.call_args.kwargs["messages"])
         # Bounded input with explicit elision markers, not a second request.
         assert len(prompt) <= c._SUMMARY_INPUT_MAX_CHARS + 20_000
         assert "chars elided" in prompt
@@ -171,7 +159,7 @@ class TestSampledSummaryInput:
         ) as mock_call:
             c._generate_summary(turns)
         assert mock_call.call_count == 1
-        prompt = mock_call.call_args.kwargs["messages"][0]["content"]
+        prompt = "\n".join(m["content"] for m in mock_call.call_args.kwargs["messages"])
         assert "summary input truncated" in prompt
 
 

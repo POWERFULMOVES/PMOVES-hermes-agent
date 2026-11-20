@@ -62,8 +62,6 @@ import type {
 import { dashboardServingProfile } from "./profile-bootstrap";
 import { PROFILE_SCOPED_PREFIXES, sameOriginRequestUrl as resolveSameOrigin } from "./api-request-scope";
 
-import { dashboardServingProfile } from "./profile-bootstrap";
-
 // The dashboard can be served either at the root of its host (e.g.
 // https://kanban.tilos.com/) or under a URL prefix when reverse-proxied
 // (e.g. https://mission-control.tilos.com/hermes/). The Python backend

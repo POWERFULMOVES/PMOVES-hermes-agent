@@ -2356,7 +2356,6 @@ export interface OnboardingSkipResult {
   skipped: boolean
 }
 /** Client→server method params / server→client request params. Unknown keys are rejected. */
-export type Params = Record<string, never>
 /** ``created`` is false when an existing setup profile was found (and returned untouched). */
 export interface OnboardingEnsureSetupProfileResult {
   name: string

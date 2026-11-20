@@ -30,7 +30,7 @@ def _editable_install_is_current(git_cmd, cwd, pre_pull_sha: str | None) -> bool
     if not pre_pull_sha:
         return False
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: PLW1510 - fork-overlay legacy; absorbed lint config tightened
             git_cmd + ["diff", "--name-only", f"{pre_pull_sha}..HEAD", "--"] + list(_INSTALL_DEFINING_FILES),
             cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     except OSError:
@@ -74,25 +74,23 @@ def _critical_module_import_failures(
         # probe only checks importability, so it inherits the updater's own argv contract.
         "sys.argv = ['hermes', 'update']\n"
         "failures = []\n"
-        "for name in %r:\n"
+        f"for name in {_UPDATE_CRITICAL_MODULES!r}:\n"
         "    try:\n"
         "        importlib.import_module(name)\n"
         "    except ModuleNotFoundError as exc:\n"
         # A missing *third-party* module means deps aren't installed, not a skewed checkout;
         # only our own packages count. Roots come from hermes_constants so the user hint can't drift.
         "        missing = (getattr(exc, 'name', '') or '').split('.')[0]\n"
-        "        if missing in %r or missing.startswith('hermes_') or %r:\n"
+        f"        if missing in {tuple(sorted(FIRST_PARTY_MODULE_ROOTS))!r} or missing.startswith('hermes_') or {report_runtime_errors!r}:\n"
         "            failures.append((name, type(exc).__name__, str(exc)))\n"
         "    except ImportError as exc:\n"
         "        failures.append((name, type(exc).__name__, str(exc)))\n"
         "    except Exception as exc:\n"
-        "        if %r:\n"
+        f"        if {report_runtime_errors!r}:\n"
         "            failures.append((name, type(exc).__name__, str(exc)))\n"
         "    except BaseException as exc:\n"
         "        failures.append((name, type(exc).__name__, str(exc)))\n"
-        "sys.stdout.write('\\n%s' + json.dumps(failures))\n"
-        % (_UPDATE_CRITICAL_MODULES, tuple(sorted(FIRST_PARTY_MODULE_ROOTS)), report_runtime_errors,
-           report_runtime_errors, marker))
+        f"sys.stdout.write('\\n{marker}' + json.dumps(failures))\n")
     try:
         interpreter = sys.executable
         with suppress(Exception):
@@ -507,7 +505,7 @@ def _npm_manifest_paths() -> tuple[Path, ...]:
     root_pkg = _m().PROJECT_ROOT / "package.json"
     paths = [_m().PROJECT_ROOT / "package-lock.json", root_pkg]
     with suppress(OSError, json.JSONDecodeError, TypeError):
-        workspaces = json.loads(root_pkg.read_text(encoding="utf-8")).get("workspaces", [])
+        workspaces = json.loads(root_pkg.read_text(encoding="utf-8-sig")).get("workspaces", [])
         if isinstance(workspaces, dict):  # legacy {"packages": [...]} form
             workspaces = workspaces.get("packages", [])
         for pattern in workspaces:
@@ -560,7 +558,7 @@ def _npm_lock_cache_file(hermes_root: Path, scope: str = "") -> Path:
 def _npm_stamp_matches(hermes_root: Path, current: str, scope: str = "") -> bool:
     """True when the recorded digest for *scope* equals *current*; a missing/unreadable stamp never matches."""
     try:
-        return _npm_lock_cache_file(hermes_root, scope).read_text(encoding="utf-8").strip() == current
+        return _npm_lock_cache_file(hermes_root, scope).read_text(encoding="utf-8-sig").strip() == current
     except OSError:
         return False
 
@@ -746,7 +744,7 @@ def _venv_core_imports_healthy() -> tuple[bool, str]:
         "    except Exception as e: missing.append(f'{m}: {e}')\n"
         "print('\\n'.join(missing))\n")
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: PLW1510 - fork-overlay legacy; absorbed lint config tightened
             [str(venv_python), "-c", check], capture_output=True, text=True, encoding="utf-8",
             errors="replace", timeout=60, cwd=_m().PROJECT_ROOT)
     except Exception as exc:
@@ -776,7 +774,7 @@ def _venv_dependency_set_stale() -> tuple[bool, str]:
     if not expected or not venv_python.exists():
         return False, ""
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: PLW1510 - fork-overlay legacy; absorbed lint config tightened
             [str(venv_python), "-c", "import importlib.metadata as m; print(m.version('hermes-agent'))"],
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
             cwd=_m().PROJECT_ROOT)
@@ -839,7 +837,7 @@ def _dependency_sync_would_rewrite(dist_name: str) -> bool | None:
         from packaging.utils import canonicalize_name
         from packaging.version import Version
         pyproject = _m().PROJECT_ROOT / "pyproject.toml"
-        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8-sig"))
         project = data.get("project") or {}
         req_strings: list[str] = list(project.get("dependencies") or [])
         for extra_reqs in (project.get("optional-dependencies") or {}).values():

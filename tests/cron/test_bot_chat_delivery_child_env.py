@@ -57,7 +57,7 @@ def _capture_child_env(monkeypatch) -> dict:
 
 
 def test_the_turn_for_another_profile_carries_that_profile_s_environment(fleet, monkeypatch):
-    root, beta = fleet
+    _root, beta = fleet
     captured = _capture_child_env(monkeypatch)
 
     assert delivery._deliver_to_bot_chat({"id": "j", "name": "nightly"}, "the brief", "beta") is None
@@ -94,7 +94,7 @@ def test_a_delivery_into_the_gateway_s_own_bot_chat_keeps_its_environment(fleet,
 def test_the_delivery_child_still_runs_this_install_and_targets_the_named_chat(fleet, monkeypatch):
     """Guard rails the env change must not disturb: the running install, and `-p default`
     only for a root home."""
-    root, beta = fleet
+    _root, _beta = fleet
     captured = _capture_child_env(monkeypatch)
     delivery._deliver_to_bot_chat({"id": "j", "name": "nightly"}, "the brief", "beta")
     argv = captured["argv"]
@@ -108,7 +108,7 @@ def test_the_delivery_child_still_runs_this_install_and_targets_the_named_chat(f
 
 
 def test_a_missing_target_home_is_refused_before_any_child_is_built(fleet, monkeypatch):
-    root, beta = fleet
+    _root, beta = fleet
     captured = _capture_child_env(monkeypatch)
     (beta / ".env").unlink()
     beta.rmdir()

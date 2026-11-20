@@ -414,18 +414,18 @@ def export_env(bs: Bootstrap, env: Optional[dict] = None) -> dict:
 
 
 __all__ = [
+    "EXAMPLE_PATH",
     "PROFILE",
     "SCHEMA_PATH",
-    "EXAMPLE_PATH",
-    "BootstrapError",
     "Bootstrap",
+    "BootstrapError",
     "Identity",
     "Meta",
-    "load_bootstrap",
-    "stub_bootstrap",
-    "export_env",
+    "_detect_yaml_or_json",
+    "_from_dict",
     # exposed for tests:
     "_validate_cgp",
-    "_from_dict",
-    "_detect_yaml_or_json",
+    "export_env",
+    "load_bootstrap",
+    "stub_bootstrap",
 ]

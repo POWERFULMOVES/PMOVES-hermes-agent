@@ -14,7 +14,6 @@ __all__ = [
     "GatewayAuthError",
     "GatewayUnavailable",
     "IdempotencyConflict",
-    "SIDE_AGENT_HINT",
     "ToolGatewayError",
     "parse_gateway_error",
     "render_connection_required",

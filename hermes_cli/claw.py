@@ -145,7 +145,7 @@ def _detect_openclaw_processes() -> list[str]:
 
 def _posix_probe(cmd: list[str], timeout: int):
     try:
-        return subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8',
+        return subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8',  # noqa: PLW1510 - fork-overlay legacy; absorbed lint config tightened
                               errors='replace', timeout=timeout)
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return None

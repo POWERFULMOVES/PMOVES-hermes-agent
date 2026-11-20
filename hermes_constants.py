@@ -13,7 +13,7 @@ import sys
 from collections.abc import Callable, Mapping, MutableMapping
 from pathlib import Path
 
-from hermes_platform.host.runtime import _detect_container, is_container, is_termux, is_wsl  # noqa: F401
+from hermes_platform.host.runtime import _detect_container, is_container, is_termux, is_wsl
 
 _profile_fallback_warned: bool = False
 

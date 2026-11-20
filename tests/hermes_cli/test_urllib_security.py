@@ -386,7 +386,7 @@ def test_azure_anthropic_probe_drops_api_key_and_bearer_on_redirect():
 @pytest.fixture(autouse=True)
 def _reset_https_context_cache():
     """Keep the CA-context memo from carrying a previous test's env into the next one."""
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     urllib_security._HTTPS_CONTEXT_CACHE = None
     yield
@@ -500,7 +500,7 @@ def _counting_context_factory():
 
 def test_hermes_owned_openers_parse_the_ca_bundle_once(monkeypatch, tmp_path):
     """Every Hermes request builds an opener; the bundle must not be re-parsed each time."""
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     _clear_ca_bundle_env(monkeypatch)
     ca_bundle = tmp_path / "corporate-ca.pem"
@@ -525,7 +525,7 @@ def test_hermes_owned_openers_parse_the_ca_bundle_once(monkeypatch, tmp_path):
 
 
 def test_rotated_ca_bundle_is_picked_up(monkeypatch, tmp_path):
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     _clear_ca_bundle_env(monkeypatch)
     ca_bundle = tmp_path / "corporate-ca.pem"
@@ -546,7 +546,7 @@ def test_rotated_ca_bundle_is_picked_up(monkeypatch, tmp_path):
 
 def test_fallback_bundle_change_does_not_invalidate_the_memo(monkeypatch, tmp_path):
     """The memo keys on the preferred bundle only: certifi was never read, so its rotation is moot."""
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     _clear_ca_bundle_env(monkeypatch)
     preferred = tmp_path / "corporate-ca.pem"
@@ -566,7 +566,7 @@ def test_fallback_bundle_change_does_not_invalidate_the_memo(monkeypatch, tmp_pa
 
 def test_default_certificates_fallback_is_logged_once_after_all_bundles_fail(monkeypatch, caplog):
     """A failed candidate says "trying the next bundle"; the default-certificates line is emitted once."""
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     def create_default_context(*, cafile=None):
         raise ssl.SSLError(f"bad bundle {cafile}")
@@ -608,7 +608,7 @@ def test_a_failed_preferred_bundle_load_is_not_memoised(
     Whether the failure leaves no context at all or a context built from a fallback bundle (certifi
     on macOS), only a context built from the preferred bundle is memoised.
     """
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     _clear_ca_bundle_env(monkeypatch)
     paths = tuple(str(tmp_path / name) for name in candidates)

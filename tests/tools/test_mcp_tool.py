@@ -2660,7 +2660,6 @@ class TestDiscoveryConnectConcurrency:
 
         def fake_run_on_mcp_loop(factory, timeout=None):
             captured["timeout"] = timeout
-            return None
 
         # 40 servers = 14 waves at cap 3: uncapped, the pass would block 28 min
         # and outlive the waiter budget by 26+ minutes.

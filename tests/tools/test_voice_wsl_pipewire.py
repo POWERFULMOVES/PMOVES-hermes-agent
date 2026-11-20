@@ -13,7 +13,7 @@ import pytest
 pytestmark = pytest.mark.platforms("linux")
 
 def _force_wsl(monkeypatch):
-    import tools.voice_mode as voice_mode
+    from tools import voice_mode
 
 def _force_wsl(monkeypatch):
     from tools import voice_mode

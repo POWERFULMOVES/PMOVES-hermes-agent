@@ -31,7 +31,7 @@ def _handoff_source() -> str:
 
 
 def test_no_gateway_switch_is_declared() -> None:
-    assert re.search(r"^\s{4}\[switch\]\$NoGateway,\s*$", _handoff_source(), re.M), (
+    assert re.search(r"^\s{4}\[switch\]\$NoGateway,\s*$", _handoff_source(), re.MULTILINE), (
         "scripts/desktop-update/windows.ps1 must declare [switch]$NoGateway so "
         "a remote-served Desktop (#117529) can opt out of the local gateway "
         "restart."

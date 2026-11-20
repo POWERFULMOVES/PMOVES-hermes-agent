@@ -159,7 +159,7 @@ def run_with_load_deadline(plugin_key: str, ctx: PluginContext, fn: Callable[[],
 _LOAD_TIMEOUT_SECS = 10.0
 _MAX_LOAD_TIMEOUT_SECS = 600.0
 _MAX_ABANDONED_LOADERS = 8
-_ABANDONED_LOADERS: List[threading.Thread] = []
+_ABANDONED_LOADERS: list[threading.Thread] = []
 _ABANDONED_LOADERS_LOCK = threading.Lock()
 _IN_PLUGIN_LOAD = threading.local()  # ``.active`` on a loader worker thread
 
@@ -212,7 +212,7 @@ def _reserve_abandoned_loader_slot() -> None:
     )
 
 
-def run_with_load_deadline(plugin_key: str, ctx: "PluginContext", fn: Callable[[], Any]) -> Any:
+def run_with_load_deadline(plugin_key: str, ctx: PluginContext, fn: Callable[[], Any]) -> Any:
     """Run ``fn`` (a plugin's import + ``register()``) under the per-plugin deadline.
 
     The worker inherits the caller's context (the Hermes-home override is a ContextVar). On timeout the
@@ -224,8 +224,8 @@ def run_with_load_deadline(plugin_key: str, ctx: "PluginContext", fn: Callable[[
     if timeout <= 0:
         return fn()
     _reserve_abandoned_loader_slot()
-    outcome: List[Any] = []
-    failure: List[BaseException] = []
+    outcome: list[Any] = []
+    failure: list[BaseException] = []
 
     def _worker() -> None:
         _IN_PLUGIN_LOAD.active = True

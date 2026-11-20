@@ -60,7 +60,7 @@ def _resolve_python_tool(script_relpath: str):
 
     def _call(*args: str, stdin: Optional[str] = None, env: Optional[dict] = None) -> subprocess.CompletedProcess:
         cmd = ["python", "-m", module, *args]
-        return subprocess.run(
+        return subprocess.run(  # noqa: PLW1510 - fork-overlay legacy; absorbed lint config tightened
             cmd,
             input=stdin,
             capture_output=True,
@@ -86,7 +86,7 @@ def _resolve_cli_tool(cli_name: str):
                 f"PMOVES tool {cli_name!r} not found on PATH; "
                 f"install it or set PMOVES_TOOLS_DISABLE to skip"
             )
-        return subprocess.run(
+        return subprocess.run(  # noqa: PLW1510 - fork-overlay legacy; absorbed lint config tightened
             [binary, *args],
             input=stdin,
             capture_output=True,
@@ -232,9 +232,9 @@ def register_pmoves_tools(
 __all__ = [
     "PMOVES_TOOL_REGISTRY",
     "BridgeResult",
-    "register_pmoves_tools",
     # exposed for tests:
     "_parse_disable_list",
-    "_resolve_python_tool",
     "_resolve_cli_tool",
+    "_resolve_python_tool",
+    "register_pmoves_tools",
 ]

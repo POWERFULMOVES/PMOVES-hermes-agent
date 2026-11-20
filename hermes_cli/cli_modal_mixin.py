@@ -1025,18 +1025,18 @@ class CLIModalMixin:
 
     def _connection_callback(self, payload):
         if not isinstance(payload, dict):
-            return None
+            return
         self._capture_modal_input_snapshot()
         installed = self._connection_install_hook()
         self._connection_show_target(payload, 0)
         state = self._connection_state
         if state is None:
-            return None
+            return
         state["owns_hook"] = installed
         state["tool_thread_id"] = threading.current_thread().ident
         if state["phase"] != "waiting":
             self._ring_bell(prompt=True, context="connection setup")
-        return None
+        return
 
     def _connection_answer(self, *, approve: bool) -> None:
         state = self._connection_state

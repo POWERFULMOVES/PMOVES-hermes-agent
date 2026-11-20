@@ -31,7 +31,7 @@ if os.name == "posix":
 
 PROJECT_ROOT = Path(_startup_fast.project_root_str())
 
-from gateway.config import coerce_systemd_watchdog_seconds, load_gateway_config  # noqa: F401 — resolved lazily by siblings through the facade
+from gateway.config import coerce_systemd_watchdog_seconds, load_gateway_config
 from gateway.status import terminate_pid
 from agent.deadline import poll_until
 from gateway.restart import (
@@ -46,7 +46,7 @@ from gateway.restart import (
     resolve_restart_exit_wait_budget,
     resolve_systemd_timeout_stop_sec,
 )
-from hermes_cli.config import (  # noqa: F401 — resolved lazily by siblings through the facade
+from hermes_cli.config import (
     get_env_value,
     get_hermes_home,
     is_managed,
@@ -57,7 +57,7 @@ from hermes_cli.config import (  # noqa: F401 — resolved lazily by siblings th
 )
 
 # display_hermes_home is imported lazily: hermes_constants may be a cached pre-update version.
-from hermes_cli.setup import (  # noqa: F401 — resolved lazily by siblings through the facade
+from hermes_cli.setup import (
     print_header,
     print_info,
     print_success,

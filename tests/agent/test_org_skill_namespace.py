@@ -377,7 +377,7 @@ class TestLocalEditsSurviveOrgUpdates:
 
         monkeypatch.delenv("HERMES_SYNC_ORG_AUTO_PROPOSE", raising=False)
         monkeypatch.setattr(
-            "hermes_cli.config.load_config", lambda: {}, raising=False
+            "hermes_cli.config.load_config", dict, raising=False
         )
         # Default must be OFF: silently pushing every agent edit to the whole
         # organisation is not a safe default.

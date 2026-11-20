@@ -262,17 +262,17 @@ def hidden_declared_sources() -> list[dict[str, Any]]:
     return rows
 
 
-def hidden_declared_sources() -> List[Dict[str, Any]]:
+def hidden_declared_sources() -> list[dict[str, Any]]:
     """Return deterministic summaries for declared MCP servers hidden by their check."""
     from hermes_platform import declaration
     from tools.mcp_liveness import unavailable_details
     from tools.registry import registry
 
-    grouped: Dict[str, List[Any]] = {}
+    grouped: dict[str, list[Any]] = {}
     for entry in registry.get_all_entries():
         if entry.toolset.startswith("mcp-"):
             grouped.setdefault(entry.toolset[4:], []).append(entry)
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for server_name in sorted(grouped):
         if declaration.lookup(server_name) is None:
             continue

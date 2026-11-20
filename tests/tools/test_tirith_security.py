@@ -26,6 +26,7 @@ def _reset_resolved_path():
     _tirith_mod._crash_count = 0
     _tirith_mod._circuit_open = False
     _tirith_mod._circuit_open_at = 0.0
+    _tirith_mod._breaker_by_home.clear()
     yield
     _tirith_mod._resolved_path = None
     _tirith_mod._install_thread = None
@@ -33,6 +34,7 @@ def _reset_resolved_path():
     _tirith_mod._crash_count = 0
     _tirith_mod._circuit_open = False
     _tirith_mod._circuit_open_at = 0.0
+    _tirith_mod._breaker_by_home.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -216,6 +218,67 @@ class TestCircuitBreakerHalfOpen:
         assert _tirith_mod._circuit_open is True
         assert check_command_security("echo hi")["summary"] == "tirith disabled (circuit breaker)"
         assert mock_run.call_count == 1  # re-armed: no second probe inside the fresh window
+
+    @patch("tools.tirith_security.subprocess.run")
+    @patch("tools.tirith_security._load_security_config")
+    def test_open_breaker_honors_fail_closed(self, mock_cfg, mock_run):
+        """With tirith_fail_open=False, an open breaker blocks without spawning: the breaker stops
+        the retry loop, it must not turn a fail-closed policy into allow for the whole window."""
+        mock_cfg.return_value = {**_CFG, "tirith_fail_open": False}
+        _open_breaker(age_s=1)
+
+        result = check_command_security("rm -rf /tmp/x")
+
+        assert result["action"] == "block"
+        assert result["summary"] == "tirith disabled by circuit breaker (fail-closed)"
+        assert mock_run.call_count == 0
+
+    @patch("tools.tirith_security.is_platform_supported", return_value=True)
+    @patch("tools.tirith_security._resolve_tirith_path", return_value="/usr/bin/tirith")
+    @patch("tools.tirith_security.subprocess.run")
+    @patch("tools.tirith_security._load_security_config")
+    def test_three_failures_then_fail_closed_stays_closed(self, mock_cfg, mock_run, _path, _platform):
+        """End to end: three spawn failures trip the breaker, and with fail-closed every command
+        before and after the trip is blocked -- none slips through as allow."""
+        mock_cfg.return_value = {**_CFG, "tirith_fail_open": False}
+        mock_run.side_effect = OSError("binary gone")
+
+        actions = [check_command_security(f"echo {i}")["action"] for i in range(6)]
+
+        assert _tirith_mod._circuit_open is True
+        assert actions == ["block"] * 6
+        assert mock_run.call_count == _tirith_mod._CRASH_LIMIT  # no spawns once open
+
+    @patch("tools.tirith_security.is_platform_supported", return_value=True)
+    @patch("tools.tirith_security._resolve_tirith_path", return_value="/usr/bin/tirith")
+    @patch("tools.tirith_security.subprocess.run")
+    @patch("tools.tirith_security._load_security_config")
+    def test_breaker_is_per_routed_profile(self, mock_cfg, mock_run, _path, _platform, tmp_path):
+        """A routed profile's broken tirith opens only that profile's breaker: another profile,
+        and the launch profile, still scan with their own binary."""
+        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+
+        mock_cfg.return_value = {**_CFG, "tirith_fail_open": False}
+        token = set_hermes_home_override(tmp_path / "profile-a")
+        try:
+            mock_run.side_effect = OSError("profile A binary gone")
+            for i in range(_tirith_mod._CRASH_LIMIT):
+                check_command_security(f"echo {i}")
+            assert check_command_security("echo a")["summary"] == "tirith disabled by circuit breaker (fail-closed)"
+        finally:
+            reset_hermes_home_override(token)
+
+        mock_run.side_effect = None
+        mock_run.return_value = _mock_run(0, _json_stdout())
+        token = set_hermes_home_override(tmp_path / "profile-b")
+        try:
+            spawned = mock_run.call_count
+            assert check_command_security("echo b")["action"] == "allow"
+            assert mock_run.call_count == spawned + 1  # B scanned with its own binary
+        finally:
+            reset_hermes_home_override(token)
+        assert _tirith_mod._circuit_open is False  # launch profile untouched
+        assert check_command_security("echo launch")["action"] == "allow"
 
 
 # ---------------------------------------------------------------------------

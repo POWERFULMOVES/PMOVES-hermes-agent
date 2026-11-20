@@ -1804,6 +1804,7 @@ class TestReasoningReplaySchema:
     """Converse ``reasoningContent`` is a tagged union (``reasoningText{text,signature}`` | ``redactedContent``);
     replaying captured thinking as a bare ``text`` key dies client-side with ParamValidationError (#115865)."""
 
+    @pytest.mark.skipif(_RealClientError is None, reason="needs the real botocore service model (bedrock extra)")
     def test_call_converse_replays_thinking_botocore_accepts(self):
         pytest.importorskip("botocore.session", reason="botocore (bedrock extra) required")
         import botocore.session

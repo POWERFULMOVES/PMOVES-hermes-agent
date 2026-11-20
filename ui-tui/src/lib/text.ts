@@ -250,15 +250,6 @@ export const buildVerboseToolTrailLine = (
   resultText?: string
 ) => verboseToolTrailLine(formatToolCall(name, context), error, duration, argsText, resultText)
 
-export const buildVerboseToolTrailLine = (
-  name: string,
-  context: string,
-  error?: boolean,
-  duration?: number,
-  argsText?: string,
-  resultText?: string
-) => verboseToolTrailLine(formatToolCall(name, context), error, duration, argsText, resultText)
-
 export const isToolTrailResultLine = (line: string) => line.endsWith(' ✓') || line.endsWith(' ✗')
 
 export const parseToolTrailResultLine = (line: string) => {

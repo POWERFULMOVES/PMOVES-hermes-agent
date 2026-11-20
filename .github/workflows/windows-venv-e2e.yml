@@ -50,7 +50,7 @@ jobs:
       - name: Install dependencies
         uses: ./.github/actions/retry
         with:
-          command: uv sync --locked --python 3.11 --extra dev --extra messaging
+          command: uv sync --locked --python 3.11 --group dev --extra messaging
 
       - name: Run venv-holder live E2E
         shell: bash

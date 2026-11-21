@@ -260,17 +260,6 @@ export function useStatusbarItems({
 
   const offerLocalReveal = shouldOfferLocalReveal(focusedRowConnectionId, connection?.mode === 'remote')
 
-  // Which backend the focused row runs on: a Connections-tagged row names its
-  // gateway; an untagged one is the window's primary. Decides whether the OS
-  // file manager on this computer can show its workspace at all.
-  const focusedRowConnectionId = useStoreSelector($sessions, sessions =>
-    focusedStoredSessionId
-      ? sessions.find(s => sessionMatchesStoredId(s, focusedStoredSessionId))?.connection_id?.trim() || ''
-      : ''
-  )
-
-  const offerLocalReveal = shouldOfferLocalReveal(focusedRowConnectionId, connection?.mode === 'remote')
-
   // Live runtime cwd is authoritative once it belongs to the focused chat
   // (agent can relocate mid-turn). Until then — cold tabs, mid-switch lag —
   // the stored session row is the selection's project. Primary drafts fall

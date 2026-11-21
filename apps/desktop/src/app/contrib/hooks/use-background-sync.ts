@@ -337,8 +337,6 @@ export async function reconcileTileTranscripts({
         continue
       }
 
-      const current = $sessionStates.get()[runtimeSessionId]
-
       if (
         requestId !== requestSequenceRef.current ||
         !tileStillPresent() ||

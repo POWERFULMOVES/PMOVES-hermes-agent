@@ -209,22 +209,6 @@ function resumeGroupSession(member: GroupMember, params: Record<string, unknown>
   return requestForBot<GroupSessionSnapshot>(member, 'session.resume', params, GROUP_SESSION_RESUME_OPTIONS)
 }
 
-/** Group turns are explicit user work. A member may be cold or retired when
- *  its round begins, and session hydration can legitimately wait behind a
- *  remote or WSL backend. Use the same three-minute budget as Desktop's
- *  focused session hydration instead of the generic 30-second RPC deadline. */
-const GROUP_SESSION_RESUME_OPTIONS = {
-  spawnPriority: 'foreground',
-  timeoutMs: 180_000
-} as const
-
-const GROUP_SESSION_BACKGROUND_RESUME_OPTIONS = { timeoutMs: 180_000 } as const
-const GROUP_SESSION_CREATE_OPTIONS = { spawnPriority: 'foreground' } as const
-
-function resumeGroupSession(member: GroupMember, params: Record<string, unknown>): Promise<GroupSessionSnapshot> {
-  return requestForBot<GroupSessionSnapshot>(member, 'session.resume', params, GROUP_SESSION_RESUME_OPTIONS)
-}
-
 /** The error message of a RETAINED failed turn, else null. The gateway keeps
  *  `{ status: 'error', error }` under `inflight` after a turn dies so a
  *  reconnecting client can rebuild the error bubble; it is a tombstone of

@@ -211,42 +211,6 @@ function emptyPageOverPopulatedTranscript(
   return page.length === 0 && Boolean(current?.messages.length) && current?.storedSessionId === storedSessionId
 }
 
-/** Backfill/retention may prepend or release a prefix without changing the tail. */
-function transcriptChangedDuringRead(before: ChatMessage[] | undefined, after: ChatMessage[] | undefined): boolean {
-  if (before === after) {
-    return false
-  }
-
-  if (!before?.length || !after?.length) {
-    return true
-  }
-
-  // Require the entire shorter transcript to be an unchanged suffix. Matching
-  // only the last row would miss edits/tool updates earlier in the current turn.
-  const overlap = Math.min(before.length, after.length)
-
-  for (let offset = 1; offset <= overlap; offset += 1) {
-    if (before[before.length - offset] !== after[after.length - offset]) {
-      return true
-    }
-  }
-
-  return false
-}
-
-/** Zero persisted rows read over a populated runtime bound to the SAME stored
- *  session. An empty page is not proof the transcript is empty — it is also
- *  what a respawning backend (or a state.db read racing the change event)
- *  returns. A runtime rebound to another stored id while the read was in
- *  flight holds no evidence about the requested transcript. */
-function emptyPageOverPopulatedTranscript(
-  page: readonly unknown[],
-  current: ClientSessionState | undefined,
-  storedSessionId: string
-): boolean {
-  return page.length === 0 && Boolean(current?.messages.length) && current?.storedSessionId === storedSessionId
-}
-
 type TileTranscriptTarget = { ownerRoute?: SessionOwnerRoute; storedSessionId: string; runtimeId?: string }
 
 /** Signature key per tile — carries the owner route so two connections/profiles

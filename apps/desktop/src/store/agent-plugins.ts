@@ -340,20 +340,6 @@ export function isSourceMovedRefusal(error: unknown): boolean {
   return refusalReason(error) === 'source_moved'
 }
 
-export interface AgentPluginLiveServer {
-  name: string
-  connected: boolean
-  tools: string[]
-  error?: string | null
-}
-
-export interface AgentPluginLiveNow {
-  mcpServers: AgentPluginLiveServer[]
-  skills: string[]
-}
-
-const NO_LIVE: AgentPluginLiveNow = { mcpServers: [], skills: [] }
-
 export async function installAgentPlugin(
   request: GatewayRequest,
   opts: {

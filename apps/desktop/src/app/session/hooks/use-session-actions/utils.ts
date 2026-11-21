@@ -615,50 +615,12 @@ function durableFoldCoversLiveResponse(folds: ChatMessage[], live: ChatMessage):
 }
 
 /** Text of the response that follows a folded tool round, not the commentary before it. */
-function lastFoldedResponseText(message: ChatMessage): string {
-  let afterTool = false
-  let text = ''
-
-  for (const part of message.parts) {
-    if (part.type === 'tool-call') {
-      afterTool = true
-      text = ''
-
-      continue
-    }
-
-    if (afterTool && part.type === 'text') {
-      text = textWithoutReferenceLines(part.text).trim()
-    }
-  }
-
-  return afterTool ? text : ''
-}
 
 /**
  * History folds a final answer into the preceding tool-round bubble. A live
  * stream bubble holding only that answer is the same occurrence, but full-bubble
  * equality cannot see it.
  */
-function durableFoldCoversLiveResponse(messages: ChatMessage[], live: ChatMessage): boolean {
-  const needle = textWithoutReferenceLines(chatMessageText(live)).trim()
-
-  if (!needle || live.parts.some(part => part.type === 'tool-call')) {
-    return false
-  }
-
-  const lastUser = messages.findLastIndex(message => message.role === 'user' && !isGatewaySystemMarker(message))
-
-  return messages.slice(lastUser + 1).some(message => {
-    if (message.role !== 'assistant' || isLiveTailReplyId(message.id)) {
-      return false
-    }
-
-    const folded = lastFoldedResponseText(message)
-
-    return folded === needle || isStrictAnswerTextExtension(folded, needle)
-  })
-}
 
 export function preserveLocalPendingTurnMessages(
   nextMessages: ChatMessage[],

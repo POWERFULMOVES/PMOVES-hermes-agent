@@ -169,7 +169,7 @@ class SessionMessagesMixin:
         return json.dumps(display_metadata)
 
     @staticmethod
-    def _decode_display_metadata(raw: Any) -> Optional[Dict[str, Any]]:
+    def _decode_display_metadata(raw: Any) -> Optional[dict[str, Any]]:
         """Decode a ``display_metadata`` column to a dict (never raw TEXT: the desktop does ``'task_count'
         in meta``). Pre-guard rows are double-encoded, so a second string layer is unwrapped."""
         if raw is None:
@@ -249,13 +249,13 @@ class SessionMessagesMixin:
         if _ended_by_compression(conn.execute(_ENDED_ROW_SQL, (session_id,)).fetchone()) and not allow_closed_compression_parent:
             raise CompressionSessionClosedError(session_id)
 
-    def _message_row_params(self, session_id: str, role: str, msg: Dict[str, Any], tool_calls: Any,
+    def _message_row_params(self, session_id: str, role: str, msg: dict[str, Any], tool_calls: Any,
         message_timestamp: float, *, keep_reasoning: bool) -> tuple:
         """Bind values for ``_INSERT_MESSAGE_SQL`` from one message dict (*tool_calls* already parsed;
         *keep_reasoning* False NULLs every reasoning column). ``platform_message_id`` falls back to
         ``message_id`` (yuanbao's message-dict convention)."""
-        _str_or_none = lambda v: _scrub_surrogates(v) if isinstance(v, str) else None  # noqa: E731
-        _reasoning = lambda key: msg.get(key) if keep_reasoning else None  # noqa: E731
+        _str_or_none = lambda v: _scrub_surrogates(v) if isinstance(v, str) else None
+        _reasoning = lambda key: msg.get(key) if keep_reasoning else None
         encoded_content = self._encode_content(msg.get("content"))
         encoded_tool_calls = json.dumps(tool_calls) if tool_calls else None
         encoded_tool_name = _scrub_surrogates(msg.get("tool_name"))
@@ -291,13 +291,13 @@ class SessionMessagesMixin:
                 f"UPDATE sessions SET message_count = message_count + {inc} WHERE id = ?", (*params, session_id))
 
     def append_message(
-        self, session_id: str, role: str, content: str = None, tool_name: str = None, tool_calls: Any = None,
-        tool_call_id: str = None, token_count: int = None, finish_reason: str = None, reasoning: str = None,
-        reasoning_content: str = None, reasoning_details: Any = None, codex_reasoning_items: Any = None,
-        codex_message_items: Any = None, platform_message_id: str = None, observed: bool = False,
+        self, session_id: str, role: str, content: str | None = None, tool_name: str | None = None, tool_calls: Any = None,
+        tool_call_id: str | None = None, token_count: int | None = None, finish_reason: str | None = None, reasoning: str | None = None,
+        reasoning_content: str | None = None, reasoning_details: Any = None, codex_reasoning_items: Any = None,
+        codex_message_items: Any = None, platform_message_id: str | None = None, observed: bool = False,
         effect_disposition: Optional[str] = None, _compressed_summary: bool = False, timestamp: Any = None,
         api_content: Optional[str] = None, display_kind: Optional[str] = None,
-        display_metadata: Optional[Dict[str, Any]] = None, compression_lock_holder: Optional[str] = None,
+        display_metadata: Optional[dict[str, Any]] = None, compression_lock_holder: Optional[str] = None,
         turn_lease_holder: Optional[str] = None, turn_lease_ttl_seconds: float = 300.0) -> int:
         """Append one message; returns the row id and bumps the session counters. ``platform_message_id``:
         the platform's own id. ``api_content``: byte-fidelity sidecar, the exact string sent to the API when
@@ -319,7 +319,7 @@ class SessionMessagesMixin:
         # holding the lock for seconds (VACUUM, checkpoint) can't kill it.
         return self._execute_write(_do, patience_s=self._TRANSCRIPT_WRITE_PATIENCE_S)
 
-    def append_delegation_delivery(self, session_id: str, content: str, metadata: Dict[str, Any]) -> int:
+    def append_delegation_delivery(self, session_id: str, content: str, metadata: dict[str, Any]) -> int:
         """Record a detached API result once, between client turns, including replay after rotation.
 
         The event's unit id, not its text or active flag, is the identity. Check and insert
@@ -354,7 +354,7 @@ class SessionMessagesMixin:
         return self._execute_write(_do, patience_s=self._TRANSCRIPT_WRITE_PATIENCE_S)
 
     def append_messages_batch(
-        self, session_id: str, messages: List[Dict[str, Any]], compression_lock_holder: Optional[str] = None,
+        self, session_id: str, messages: list[dict[str, Any]], compression_lock_holder: Optional[str] = None,
         turn_lease_holder: Optional[str] = None, chunk_rows: Optional[int] = None,
         turn_lease_ttl_seconds: float = 300.0) -> int:
         """Append *messages* in ONE write txn (all rows land or none, guards run once); returns the inserted
@@ -379,7 +379,7 @@ class SessionMessagesMixin:
 
     def set_latest_matching_message_display_kind(self, session_id: str, *, role: str, content: str,
                                                  display_kind: str,
-                                                 display_metadata: Optional[Dict[str, Any]] = None) -> bool:
+                                                 display_metadata: Optional[dict[str, Any]] = None) -> bool:
         """Stamp presentation metadata on this turn's freshly persisted row (newest active row by content,
         right after the serial turn flushed); the model still sees ``role``/``content`` unchanged, so
         producer provenance survives without classifying by content at render time."""
@@ -396,13 +396,13 @@ class SessionMessagesMixin:
             return True
         return self._execute_write(_do)
 
-    def _reaction_list(self, meta: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _reaction_list(self, meta: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
         """Well-formed (dict) reactions stored under ``REACTIONS_METADATA_KEY``."""
         reactions = (meta or {}).get(self.REACTIONS_METADATA_KEY)
         return [r for r in reactions if isinstance(r, dict)] if isinstance(reactions, list) else []
 
     def set_message_reaction(self, session_id: str, message_row_id: int, emoji: Optional[str], *,
-                             author: str = "user") -> Optional[List[Dict[str, Any]]]:
+                             author: str = "user") -> Optional[list[dict[str, Any]]]:
         """Set (``emoji=None``: clear) *author*'s reaction. Tapback semantics: one per author per message;
         the same emoji again clears, a different one replaces. Returns the list after the write, or
         ``None`` for a row outside the session's visible resume lineage (see ``_reaction_row_query``)."""
@@ -427,14 +427,14 @@ class SessionMessagesMixin:
             return reactions
         return self._execute_write(_do)
 
-    def get_message_reactions(self, session_id: str, message_row_id: int) -> List[Dict[str, Any]]:
+    def get_message_reactions(self, session_id: str, message_row_id: int) -> list[dict[str, Any]]:
         """Reaction list persisted on one message row (never ``None``)."""
         if not session_id or message_row_id is None:
             return []
         row = self._read_one(*self._reaction_row_query(session_id, message_row_id))
         return self._reaction_list(self._decode_display_metadata(row[0])) if row is not None else []
 
-    def _reaction_row_query(self, session_id: str, message_row_id: int) -> Tuple[str, tuple]:
+    def _reaction_row_query(self, session_id: str, message_row_id: int) -> tuple[str, tuple]:
         """A reaction addresses a row the client can SEE, and a display resume materializes the whole
         compression lineage (active + compacted rows, with row ids) — so a row is "in this session" when
         its owner is any lineage segment, not only the tip, and a rewound row is not. Explicit ``/branch``
@@ -442,7 +442,7 @@ class SessionMessagesMixin:
         lineage = self._resume_lineage_ids(session_id)
         return _DISPLAY_META_ROW_SQL.format(ids=_placeholders(lineage)), (message_row_id, *lineage)
 
-    def take_unseen_reactions(self, session_id: str, *, author: str = "user") -> List[Dict[str, Any]]:
+    def take_unseen_reactions(self, session_id: str, *, author: str = "user") -> list[dict[str, Any]]:
         """Return *author*'s not-yet-surfaced reactions and mark them seen. Reactions are announced on the
         NEXT user turn (never by rewriting the reacted message: cache-safe); ``seen`` makes it exactly once.
         Include compaction-archived history that remains visible, but exclude rewound/superseded rows."""
@@ -504,7 +504,7 @@ class SessionMessagesMixin:
         row = self._read_one("SELECT role FROM messages WHERE id = ? AND session_id = ? AND active = 1", (int(row_id), session_id))
         return row[0] if row else None
 
-    def _insert_message_rows(self, conn, session_id: str, messages: List[Dict[str, Any]]) -> tuple[int, int]:
+    def _insert_message_rows(self, conn, session_id: str, messages: list[dict[str, Any]]) -> tuple[int, int]:
         """Insert *messages* as fresh active rows in the caller's txn -> ``(inserted, tool_call_count)``.
         Never touches sessions.* counters (callers reconcile differently); reasoning kept for assistant rows."""
         now_ts = time.time()
@@ -546,7 +546,7 @@ class SessionMessagesMixin:
             rewritten += 1
         return rewritten
 
-    def replace_messages(self, session_id: str, messages: List[Dict[str, Any]], active_only: bool = False,
+    def replace_messages(self, session_id: str, messages: list[dict[str, Any]], active_only: bool = False,
         archive_dropped: bool = False, reject_active_turn_lease: bool = False) -> None:
         """Atomically replace a session's messages (/retry, /undo, /compress). DESTRUCTIVE by default (rows
         DELETEd, leave FTS). ``active_only`` spares soft-archived rows (needed with in-place compaction).
@@ -599,7 +599,7 @@ class SessionMessagesMixin:
         return (role, cls._encode_content(cls._loaded_view_content(role, content)), tool_call_id,
                 json.dumps(tool_calls) if tool_calls else None)
 
-    def _stamp_kept_live_prefix(self, live: list, messages: List[Dict[str, Any]]) -> int:
+    def _stamp_kept_live_prefix(self, live: list, messages: list[dict[str, Any]]) -> int:
         """Length of the in-order prefix of *messages* already present as the leading live rows; each
         matched message gets its existing ``_row_id`` stamped, as a fresh insert would set it."""
         kept = 0
@@ -642,12 +642,12 @@ class SessionMessagesMixin:
         return int(self._read_one(
             "SELECT COALESCE(MAX(id), 0) FROM messages WHERE session_id = ? AND active = 1", (session_id,))[0])
 
-    def _tail_rows_after_watermark(self, conn, sql: str, params) -> Tuple[List[int], int]:
+    def _tail_rows_after_watermark(self, conn, sql: str, params) -> tuple[list[int], int]:
         """``(ids, tool_call_count)`` of the concurrent-tail rows selected by *sql* (``SELECT id, tool_calls``)."""
         rows = conn.execute(sql, params).fetchall()
         return [int(r["id"]) for r in rows], sum(_tool_calls_len(r["tool_calls"]) for r in rows)
 
-    def _clone_message_rows(self, conn, tail_ids: List[int], *, session_id: Optional[str] = None) -> None:
+    def _clone_message_rows(self, conn, tail_ids: list[int], *, session_id: Optional[str] = None) -> None:
         """Pure-SQL clone of *tail_ids* as fresh live rows (new id/display order, active=1, compacted=0;
         message payload columns stay byte-exact and FTS triggers index the clones), into *session_id* when given."""
         retarget = session_id is not None
@@ -662,8 +662,8 @@ class SessionMessagesMixin:
             f"WHERE id IN ({_placeholders(tail_ids)}) ORDER BY id",
             [session_id, *tail_ids] if retarget else tail_ids)
 
-    def archive_and_compact(self, session_id: str, compacted_messages: List[Dict[str, Any]],
-        model_config_patch: Optional[Dict[str, Any]] = None, watermark: Optional[int] = None,
+    def archive_and_compact(self, session_id: str, compacted_messages: list[dict[str, Any]],
+        model_config_patch: Optional[dict[str, Any]] = None, watermark: Optional[int] = None,
         lock_holder: Optional[str] = None, tail_count: int = 0) -> int:
         """Non-destructive in-place compaction under ONE session id: soft-archive the active rows (``active=0,
         compacted=1``: summarized away, still searchable) and insert *compacted_messages* as fresh active
@@ -724,7 +724,7 @@ class SessionMessagesMixin:
             return inserted
         return self._execute_write(_do)
 
-    def _message_column_names(self, conn) -> List[str]:
+    def _message_column_names(self, conn) -> list[str]:
         """Column names of the messages table, cached per-connection era."""
         if not getattr(self, "_message_columns_cache", None):
             self._message_columns_cache = [r[1] for r in conn.execute("PRAGMA table_info(messages)").fetchall()]
@@ -791,7 +791,7 @@ class SessionMessagesMixin:
             "UPDATE messages SET content = ? WHERE id = ? AND session_id = ? AND role = 'user' AND active = 1",
             (self._encode_content(content), row_id, session_id))
 
-    def _display_dedupe_key(self, row) -> Tuple[Any, ...]:
+    def _display_dedupe_key(self, row) -> tuple[Any, ...]:
         """Historical display identity, including normalized live content from user handoff carriers."""
         dedupe_content = row["content"]
         if row["role"] == "user":
@@ -805,7 +805,7 @@ class SessionMessagesMixin:
                 row["tool_call_id"], row["tool_calls"], row["tool_name"])
 
     @staticmethod
-    def _display_identity(key: Tuple[Any, ...]) -> bytes:
+    def _display_identity(key: tuple[Any, ...]) -> bytes:
         """Fixed-width durable identity for indexed display-generation lookup."""
         return hashlib.sha256(repr(key).encode("utf-8", "surrogatepass")).digest()
 
@@ -813,8 +813,8 @@ class SessionMessagesMixin:
         """Collapse compaction generations so each logical message appears once (the protected tail is copied
         into each generation: same role/content/timestamp, different ``active``/id); prefer the live row, then
         the newest. The ONE definition every display projection shares. *rows* must be ordered by ``id``."""
-        seen: Dict[Tuple[Any, ...], Any] = {}
-        first_id: Dict[Tuple[Any, ...], int] = {}
+        seen: dict[tuple[Any, ...], Any] = {}
+        first_id: dict[tuple[Any, ...], int] = {}
         for row in rows:
             key = self._display_dedupe_key(row)
             cur = seen.get(key)
@@ -843,7 +843,7 @@ class SessionMessagesMixin:
             missing = conn.execute(missing_sql, (session_id,)).fetchone()
             if missing is None:
                 return True
-            first_id: Dict[bytes, int] = {}
+            first_id: dict[bytes, int] = {}
             last_id = 0
             while True:
                 rows = conn.execute(
@@ -871,9 +871,9 @@ class SessionMessagesMixin:
         return bool(self._execute_write(_do))
 
     def _legacy_display_page(self, session_id: str, *, active_clause: str, limit: Optional[int], offset: int,
-                             latest: bool) -> List[Any]:
+                             latest: bool) -> list[Any]:
         """Project a legacy read-only display page without retaining transcript payloads."""
-        representatives: Dict[bytes, Tuple[int, int]] = {}
+        representatives: dict[bytes, tuple[int, int]] = {}
         with self._read_ctx() as conn:
             conn.execute("BEGIN")
             try:
@@ -910,7 +910,7 @@ class SessionMessagesMixin:
                 if conn.in_transaction:
                     conn.execute("ROLLBACK")
 
-    def _row_to_message_dict(self, row, *, warn_context: str, summary_flag: bool) -> Dict[str, Any]:
+    def _row_to_message_dict(self, row, *, warn_context: str, summary_flag: bool) -> dict[str, Any]:
         """``dict(row)`` with content/tool_calls/display_metadata decoded; *summary_flag* keeps
         ``_compressed_summary`` only as ``True``."""
         msg = dict(row)
@@ -941,7 +941,7 @@ class SessionMessagesMixin:
 
     def get_messages(self, session_id: str, include_inactive: bool = False, include_compacted: bool = False,
                      limit: Optional[int] = None, offset: int = 0, latest: bool = False,
-                     after_id: Optional[int] = None) -> List[Dict[str, Any]]:
+                     after_id: Optional[int] = None) -> list[dict[str, Any]]:
         """Load messages in insertion order (id, never timestamp: clocks regress). ``include_inactive``:
         rewind rows too; ``include_compacted``: compaction-archived display history (not rewind rows).
         ``latest`` pages back from the newest but returns chronological order; ``after_id``: keyset paging."""
@@ -986,7 +986,7 @@ class SessionMessagesMixin:
                 rows.reverse()
         return [self._row_to_message_dict(row, warn_context="get_messages", summary_flag=True) for row in rows]
 
-    def find_pr_url_messages(self, session_ids: List[str]) -> List[Dict[str, Any]]:
+    def find_pr_url_messages(self, session_ids: list[str]) -> list[dict[str, Any]]:
         """Tool results containing ``/pull/``: a deliberately loose scan, oldest-first so the caller takes the last."""
         ids = [s for s in session_ids if s]
         chunks = (ids[start : start + 900] for start in range(0, len(ids), 900))  # SQLite's bound-variable ceiling.
@@ -997,7 +997,7 @@ class SessionMessagesMixin:
                     ORDER BY id ASC""",
                 chunk)]
 
-    def get_messages_around(self, session_id: str, around_message_id: int, window: int = 5) -> Dict[str, Any]:
+    def get_messages_around(self, session_id: str, around_message_id: int, window: int = 5) -> dict[str, Any]:
         """Up to *window* messages either side of an anchor id (ascending). ``messages_before``/``_after`` count
         strictly around the anchor (fewer than *window* = session boundary). Empty for a foreign anchor."""
         window = max(window, 0)
@@ -1057,7 +1057,7 @@ class SessionMessagesMixin:
                 seen.add(current)
             return best if best is not None else session_id
 
-    def _fetch_conversation_rows(self, session_ids: List[str], active_clause: str, *, with_session_id: bool):
+    def _fetch_conversation_rows(self, session_ids: list[str], active_clause: str, *, with_session_id: bool):
         """``_CONVERSATION_ROW_COLUMNS`` rows for *session_ids* ORDER BY id (timestamps are not monotonic
         and would break tool-call adjacency)."""
         return self._read_all(
@@ -1068,7 +1068,7 @@ class SessionMessagesMixin:
     def get_messages_as_conversation(self, session_id: str, include_ancestors: bool = False,
                                      include_inactive: bool = False, repair_alternation: bool = False,
                                      include_row_ids: bool = False,
-                                     include_compacted: bool = False) -> List[Dict[str, Any]]:
+                                     include_compacted: bool = False) -> list[dict[str, Any]]:
         """Load messages in OpenAI format. ``include_compacted`` (deduped display history) is for DISPLAY reads
         only: the model-fed restore must not regrow what compaction summarized away. ``repair_alternation``
         repairs the loaded list for LIVE REPLAY callers (a durable ``user;user`` pair would re-trigger the
@@ -1083,7 +1083,7 @@ class SessionMessagesMixin:
             repair_alternation=repair_alternation, include_row_ids=include_row_ids,
             include_summary_markers=repair_alternation)
 
-    def _dedupe_replayed_user(self, messages, msg, exact_user_clones) -> Tuple[bool, Any]:
+    def _dedupe_replayed_user(self, messages, msg, exact_user_clones) -> tuple[bool, Any]:
         """Ancestor-lineage dedupe of one decoded user *msg* -> ``(skip, exact_clone_key)``. Rotation
         column-clones the concurrent tail into the child, so copies need not be adjacent: the exact
         ``(timestamp, canonical content)`` clone index is checked first, then the adjacent heuristic. A
@@ -1107,14 +1107,14 @@ class SessionMessagesMixin:
 
     def _rows_to_conversation(self, rows, *, session_id: str, include_ancestors: bool, repair_alternation: bool,
                               include_row_ids: bool = False,
-                              include_summary_markers: bool = False) -> List[Dict[str, Any]]:
+                              include_summary_markers: bool = False) -> list[dict[str, Any]]:
         """Decode fetched rows (ordered by id, pre-filtered) into OpenAI format, stable key order. Every dict is
         stamped ``_DB_PERSISTED_MARKER_KEY`` (born durable) so an identity-losing handoff never re-appends the
         transcript on flush. ``_row_id`` is opt-in (gateway reactions); reasoning restored on assistant rows
         only; ``api_content`` VERBATIM (no sanitize/strip) so replay keeps the provider prompt cache byte-stable."""
         from hermes_state import _strip_background_review_harness, _strip_stale_tool_call_markers
         messages = []
-        exact_user_clones: Dict[Tuple[Any, str], Dict[str, Any]] = {}
+        exact_user_clones: dict[tuple[Any, str], dict[str, Any]] = {}
         for row in rows:
             content = self._loaded_view_content(row["role"], self._decode_content(row["content"]))
             # Underscore-prefixed like ``_row_id``: transports strip it before the wire; compression's
@@ -1167,7 +1167,7 @@ class SessionMessagesMixin:
                     "see repair_message_sequence", repaired, session_id)
         return messages
 
-    def get_resume_conversations(self, session_id: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def get_resume_conversations(self, session_id: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """``(model_history, display_history)`` for a resume from ONE SELECT; byte-identical to the separate
         reads. model: the tip's active rows, alternation-repaired, summary marker kept for pre-compress
         checkpointing. display: the full lineage (``/branch`` stands alone), compaction-archived rows deduped.
@@ -1189,12 +1189,12 @@ class SessionMessagesMixin:
             include_ancestors=True, repair_alternation=False, include_row_ids=True)
         return model_history, display_history
 
-    def _resume_lineage_ids(self, session_id: str) -> List[str]:
+    def _resume_lineage_ids(self, session_id: str) -> list[str]:
         """Session ids a display resume materializes: the compression lineage, or the session alone for an
         explicit ``/branch`` copy. Shared with the resume guard so it counts exactly what a resume loads."""
         return [session_id] if self._is_explicit_branch_session(session_id) else self._session_lineage_root_to_tip(session_id)
 
-    def _resume_count_scope(self, session_id: str, tip_only: bool) -> Tuple[List[str], str]:
+    def _resume_count_scope(self, session_id: str, tip_only: bool) -> tuple[list[str], str]:
         """``tip_only``: the tip's ACTIVE rows (model restore); else the full-lineage DISPLAY set."""
         if tip_only:
             return [session_id], "active = 1"
@@ -1227,7 +1227,7 @@ class SessionMessagesMixin:
                 message_count, max_messages, scope="in its tip segment" if tip_only else "across its lineage")
         return message_count
 
-    def get_ancestor_display_prefix(self, session_id: str) -> List[Dict[str, Any]]:
+    def get_ancestor_display_prefix(self, session_id: str) -> list[dict[str, Any]]:
         """Ancestor-only display messages of a lineage (row ``session_id != tip``) that ``session.resume``
         prepends. Identified by row origin, not ``display[:len(display) - len(model)]``, so alternation
         repair cannot overcount."""
@@ -1251,7 +1251,7 @@ class SessionMessagesMixin:
         return chain[0] if chain and chain[0] else session_id
 
     @staticmethod
-    def _canonical_replayed_user_content(msg: Dict[str, Any]) -> Tuple[Any, bool]:
+    def _canonical_replayed_user_content(msg: dict[str, Any]) -> tuple[Any, bool]:
         """Return canonical live content and whether *msg* is composite."""
         if msg.get("role") != "user":
             return None, False
@@ -1260,7 +1260,7 @@ class SessionMessagesMixin:
         return live_view.get("content") if is_composite else msg.get("content"), is_composite
 
     @staticmethod
-    def _exact_replayed_user_clone_key(timestamp: Any, content: Any) -> Optional[Tuple[Any, str]]:
+    def _exact_replayed_user_clone_key(timestamp: Any, content: Any) -> Optional[tuple[Any, str]]:
         """Return a hashable key for a column-exact rotation clone."""
         if timestamp is None or content in (None, "", []):
             return None
@@ -1270,8 +1270,8 @@ class SessionMessagesMixin:
             return None
 
     @staticmethod
-    def _find_duplicate_replayed_user_message(messages: List[Dict[str, Any]],
-                                              msg: Dict[str, Any]) -> Optional[Tuple[int, bool]]:
+    def _find_duplicate_replayed_user_message(messages: list[dict[str, Any]],
+                                              msg: dict[str, Any]) -> Optional[tuple[int, bool]]:
         """Adjacent replay duplicate ``(index, prefer_current)`` or None. Rotation may persist the current ask
         in the parent and again inside a composite child carrier: carriers compare by canonical live payload,
         ordinary users by exact string. The child carrier wins (it owns the durable row id and scaffold)."""
@@ -1294,7 +1294,7 @@ class SessionMessagesMixin:
     # ========================================================================= Rewind (soft-delete) — see
     # /rewind slash command + issue #21910
     # =========================================================================
-    def get_active_message_ids(self, session_id: str) -> List[int]:
+    def get_active_message_ids(self, session_id: str) -> list[int]:
         """Ordered physical active ids for rewind CAS checks (includes legacy harness rows projections omit)."""
         return [int(row[0]) for row in self._read_all(_ACTIVE_IDS_SQL, (session_id,))]
 
@@ -1304,7 +1304,7 @@ class SessionMessagesMixin:
         rows = conn.execute("SELECT tool_calls FROM messages WHERE session_id = ? AND active = 1", (session_id,)).fetchall()
         return len(rows), sum(_tool_calls_len(row[0], scalar=1) for row in rows)
 
-    def _split_rewind_target(self, target_row: Dict[str, Any], expected_target_content: Any, preserve_compaction_handoff: bool):
+    def _split_rewind_target(self, target_row: dict[str, Any], expected_target_content: Any, preserve_compaction_handoff: bool):
         """Validate an active rewind target; return its handoff scaffold (or None). ``ValueError``: inactive /
         non-user-originated / missing composite carrier; ``RuntimeError``: live payload changed."""
         if not target_row.get("active"):
@@ -1324,8 +1324,8 @@ class SessionMessagesMixin:
         return handoff if preserve_compaction_handoff else None
 
     def rewind_to_message(self, session_id: str, target_message_id: int, *, preserve_compaction_handoff: bool = False,
-                          expected_active_ids: Optional[List[int]] = None,
-                          expected_target_content: Any = None) -> Dict[str, Any]:
+                          expected_active_ids: Optional[list[int]] = None,
+                          expected_target_content: Any = None) -> dict[str, Any]:
         """Soft-delete (``active=0``) every message with id >= *target_message_id*, target included (the caller
         pre-fills it as the next prompt). Returns ``{"rewound_count", "target_message", "new_head_id"}``, plus
         ``replacement_message_id`` with ``preserve_compaction_handoff`` (archives a composite summary carrier,
@@ -1371,7 +1371,7 @@ class SessionMessagesMixin:
         return {"rewound_count": len(rewound), "target_message": target_row, "new_head_id": new_head_id,
                 **({"replacement_message_id": replacement_message_id} if preserve_compaction_handoff else {})}
 
-    def message_count(self, session_id: str = None) -> int:
+    def message_count(self, session_id: str | None = None) -> int:
         """Count messages, optionally for a specific session."""
         sql = "SELECT COUNT(*) FROM messages" + (" WHERE session_id = ?" if session_id else "")
         return self._read_one(sql, (session_id,) if session_id else ())[0]
@@ -1396,7 +1396,7 @@ class SessionMessagesMixin:
             "SELECT 1 FROM messages WHERE session_id = ? AND platform_message_id = ? LIMIT 1",
             (session_id, platform_message_id)) is not None
 
-    def _is_explicit_fork_child_row(self, session: Dict[str, Any], *, include_reset: bool = False) -> bool:
+    def _is_explicit_fork_child_row(self, session: dict[str, Any], *, include_reset: bool = False) -> bool:
         """True when *session* is a branch, delegate, or tool child of its parent (``include_reset``: also a
         reset fork). Markers only count when they point at ``parent_session_id``: compression copies
         ``model_config`` onto the continuation, so presence-only matching would misclassify it (same binding
@@ -1447,12 +1447,12 @@ class SessionMessagesMixin:
             conn.execute(_RESET_COUNTERS_SQL, (session_id,))
         self._execute_write(_do)
 
-    def purge_stale_tool_call_markers(self, *, dry_run: bool = False, backup: bool = True) -> Dict[str, Any]:
+    def purge_stale_tool_call_markers(self, *, dry_run: bool = False, backup: bool = True) -> dict[str, Any]:
         """Permanently clear bare tool-call marker content ("[memory]") left by pre-fix sessions
         (``_rows_to_conversation`` repairs it in memory; this stops the re-scan). Only ``content`` is touched.
         ``backup``: ``VACUUM INTO`` snapshot first (none when nothing changes)."""
         from hermes_state import _STALE_TOOL_CALL_MARKER_RE
-        def _find_affected(conn) -> List[int]:
+        def _find_affected(conn) -> list[int]:
             cursor = conn.execute("SELECT id, content FROM messages "
                 "WHERE role = 'assistant' AND tool_calls IS NOT NULL AND tool_calls != ''")
             return [row["id"] for row in cursor.fetchall()

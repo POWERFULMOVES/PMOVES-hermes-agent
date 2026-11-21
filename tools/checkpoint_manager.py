@@ -74,11 +74,11 @@ _SHORTSTAT_FIELDS = (("files_changed", r'(\d+) file'), ("insertions", r'(\d+) in
                      ("deletions", r'(\d+) deletion'))
 
 
-def _no_store_result() -> Dict:
+def _no_store_result() -> dict:
     return {"success": False, "error": "No checkpoints exist for this directory"}
 
 
-def _empty_prune_result() -> Dict[str, int]:
+def _empty_prune_result() -> dict[str, int]:
     return dict.fromkeys(("scanned", "deleted_orphan", "deleted_stale", "errors", "bytes_freed"), 0)
 
 
@@ -137,10 +137,10 @@ def _project_meta_path(store: Path, dir_hash: str) -> Path:
     return store / _PROJECTS_DIRNAME / f"{dir_hash}.json"
 
 
-def _read_json_dict(path: Path) -> Optional[Dict]:
+def _read_json_dict(path: Path) -> Optional[dict]:
     """Parse ``path`` as a JSON object; None when missing, unreadable or not a dict."""
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return None
     return data if isinstance(data, dict) else None
@@ -169,17 +169,17 @@ def _hash_file(path: Path) -> Optional[str]:
         return None
 
 
-def _load_ledger(store: Path, dir_hash: str) -> Dict[str, Dict]:
+def _load_ledger(store: Path, dir_hash: str) -> dict[str, dict]:
     """Agent-write ledger ``{abs_path: {"sha256", "ts"}}``: hash of every file the last
     ``write_file``/``patch`` produced, so restores can tell Hermes' writes from later user edits."""
     return _read_json_dict(_ledger_path(store, dir_hash)) or {}
 
 
-def _save_ledger(store: Path, dir_hash: str, ledger: Dict[str, Dict]) -> None:
+def _save_ledger(store: Path, dir_hash: str, ledger: dict[str, dict]) -> None:
     """Persist the agent-write ledger, capped to the newest entries."""
     try:
         if len(ledger) > _LEDGER_MAX_ENTRIES:
-            ts = lambda kv: kv[1].get("ts", 0) if isinstance(kv[1], dict) else 0  # noqa: E731
+            ts = lambda kv: kv[1].get("ts", 0) if isinstance(kv[1], dict) else 0
             ledger = dict(sorted(ledger.items(), key=ts, reverse=True)[:_LEDGER_MAX_ENTRIES])
         path = _ledger_path(store, dir_hash)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -211,11 +211,11 @@ def _git_env(store: Path, working_dir: str, index_file: Optional[Path] = None) -
     return env
 
 
-def _git_subprocess(cmd: List[str], env: dict, timeout: int, cwd: Optional[str] = None):
+def _git_subprocess(cmd: list[str], env: dict, timeout: int, cwd: Optional[str] = None):
     # creationflags suppresses the per-call conhost flash on Windows (no-op on POSIX).
     # Text mode both replaces undecodable path bytes and normalizes CR/CRLF.
     text_options = {} if "-z" in cmd else {"text": True, "encoding": "utf-8", "errors": "replace"}
-    result = subprocess.run(cmd, capture_output=True, timeout=timeout, **text_options,
+    result = subprocess.run(cmd, capture_output=True, timeout=timeout, **text_options,  # noqa: PLW1510 - fork-overlay legacy; absorbed lint config tightened
                             env=env, cwd=cwd, stdin=subprocess.DEVNULL, creationflags=windows_hide_flags())
     if "-z" in cmd:
         result.stdout = os.fsdecode(result.stdout)
@@ -237,8 +237,8 @@ def _repair_bare_repo_dirs(store: Path) -> None:
             logger.warning("Cannot create %s in checkpoint store: %s", subdir, exc)
 
 
-def _run_git(args: List[str], store: Path, working_dir: str, timeout: int = _GIT_TIMEOUT,
-             allowed_returncodes: Optional[Set[int]] = None, index_file: Optional[Path] = None) -> Tuple[bool, str, str]:
+def _run_git(args: list[str], store: Path, working_dir: str, timeout: int = _GIT_TIMEOUT,
+             allowed_returncodes: Optional[set[int]] = None, index_file: Optional[Path] = None) -> tuple[bool, str, str]:
     """Run git against the shared store -> (ok, stdout, stderr).  ``allowed_returncodes`` suppresses
     error logging for expected non-zero exits (``diff --cached --quiet`` -> 1); ``ok`` stays rc == 0."""
     wd = _normalize_path(working_dir)
@@ -276,7 +276,7 @@ def _run_git(args: List[str], store: Path, working_dir: str, timeout: int = _GIT
     return ok, stdout, stderr
 
 
-def _git_out(args: List[str], store: Path, working_dir: str, rc: Optional[Set[int]] = None) -> str:
+def _git_out(args: list[str], store: Path, working_dir: str, rc: Optional[set[int]] = None) -> str:
     """stdout of a successful git call, else ``""``."""
     ok, out, _ = _run_git(args, store, working_dir, allowed_returncodes=rc)
     return out if ok else ""
@@ -292,11 +292,11 @@ def _ref_commit_count(store: Path, working_dir: str, ref: str) -> int:
     return int(out) if out.isdigit() else 0
 
 
-def _ref_commits_oldest_first(store: Path, working_dir: str, ref: str) -> List[str]:
+def _ref_commits_oldest_first(store: Path, working_dir: str, ref: str) -> list[str]:
     return _git_out(["rev-list", "--reverse", ref], store, working_dir).splitlines()
 
 
-def _list_project_refs(store: Path, working_dir: str) -> List[str]:
+def _list_project_refs(store: Path, working_dir: str) -> list[str]:
     out = _git_out(["for-each-ref", "--format=%(refname)", _REFS_PREFIX], store, working_dir, {128})
     return [r for r in out.splitlines() if r.strip()]
 
@@ -306,11 +306,11 @@ def _delete_ref(store: Path, ref: str) -> bool:
     return ok
 
 
-def _commit_tree_args(tree_sha: str, message: str, parent: Optional[str]) -> List[str]:
+def _commit_tree_args(tree_sha: str, message: str, parent: Optional[str]) -> list[str]:
     return ["commit-tree", tree_sha, *(["-p", parent] if parent is not None else []), "-m", message, "--no-gpg-sign"]
 
 
-def _rebuild_linear_chain(store: Path, working_dir: str, shas: List[str]) -> Optional[str]:
+def _rebuild_linear_chain(store: Path, working_dir: str, shas: list[str]) -> Optional[str]:
     """Re-commit each sha's tree (same message) as a fresh linear chain; new tip, or None on
     any failure (caller leaves the ref untouched)."""
     new_parent: Optional[str] = None
@@ -325,7 +325,7 @@ def _rebuild_linear_chain(store: Path, working_dir: str, shas: List[str]) -> Opt
     return new_parent
 
 
-def _rewrite_ref_to(store: Path, working_dir: str, ref: str, commits: List[str]) -> bool:
+def _rewrite_ref_to(store: Path, working_dir: str, ref: str, commits: list[str]) -> bool:
     """Point ``ref`` at a freshly rebuilt linear chain of ``commits``; False if nothing was rewritten."""
     if not commits:
         return False
@@ -439,7 +439,7 @@ def _init_store(store: Path, working_dir: str) -> Optional[str]:
     return None
 
 
-def _volume_evidence(workdir: Path) -> Dict:
+def _volume_evidence(workdir: Path) -> dict:
     """``(st_dev, st_ino)`` of ``workdir``'s parent, captured while reachable: identifies the
     *directory*, not the path (a mount point resolves to the underlay after unmount), so orphan
     pruning can tell "deleted" from "volume detached".  ``{}`` when unreachable, on error, or with
@@ -472,7 +472,7 @@ def _register_project(store: Path, working_dir: str) -> None:
 _touch_project = _register_project  # per-turn touch == re-register (same upsert)
 
 
-def _list_projects(store: Path) -> List[Dict]:
+def _list_projects(store: Path) -> list[dict]:
     """All registered projects under the store (each tagged with ``_hash``)."""
     projects_dir = store / _PROJECTS_DIRNAME
     if not projects_dir.exists():
@@ -481,10 +481,10 @@ def _list_projects(store: Path) -> List[Dict]:
     return [{**meta, "_hash": stem} for stem, meta in metas if meta is not None]
 
 
-def _pre_v2_shadow_repos(base: Path) -> List[Dict]:
+def _pre_v2_shadow_repos(base: Path) -> list[dict]:
     """Pre-v2 per-project shadow repos (``base/<hash>/HEAD``) still under ``base``; the single
     scan so a ``store_status`` preview always matches what ``prune_checkpoints`` deletes."""
-    out: List[Dict] = []
+    out: list[dict] = []
     for child in base.iterdir() if base.exists() else ():
         if (not child.is_dir() or child.name == _STORE_DIRNAME
                 or child.name.startswith(_LEGACY_PREFIX) or not (child / "HEAD").exists()):
@@ -493,7 +493,7 @@ def _pre_v2_shadow_repos(base: Path) -> List[Dict]:
         marker_unreadable = False
         try:
             if (child / "HERMES_WORKDIR").exists():
-                workdir = (child / "HERMES_WORKDIR").read_text(encoding="utf-8").strip()
+                workdir = (child / "HERMES_WORKDIR").read_text(encoding="utf-8-sig").strip()
         except (OSError, UnicodeDecodeError):
             marker_unreadable = True  # present but unreadable: no evidence the project is gone
         out.append({"path": child, "workdir": workdir, "marker_unreadable": marker_unreadable,
@@ -501,7 +501,7 @@ def _pre_v2_shadow_repos(base: Path) -> List[Dict]:
     return out
 
 
-def _legacy_archives(base: Path) -> List[Path]:
+def _legacy_archives(base: Path) -> list[Path]:
     return [c for c in list(base.iterdir()) if c.is_dir() and c.name.startswith(_LEGACY_PREFIX)]
 
 
@@ -551,7 +551,7 @@ def _project_refs(working_dir: str) -> _ProjectRefs:
 
 
 def _locate(working_dir: str, commit_hash: str,
-            file_path: Optional[str] = None) -> Tuple[Optional[_ProjectRefs], Optional[Dict]]:
+            file_path: Optional[str] = None) -> tuple[Optional[_ProjectRefs], Optional[dict]]:
     """Validate inputs and resolve store coordinates; ``(refs, error_result_or_None)``."""
     p = _project_refs(working_dir)
     err = _validate_commit_hash(commit_hash) or (file_path and _validate_file_path(file_path, p.abs_dir))
@@ -560,12 +560,12 @@ def _locate(working_dir: str, commit_hash: str,
     return p, None if _store_has_head(p.store) else _no_store_result()
 
 
-def _stage_all(p: _ProjectRefs) -> Tuple[bool, str, str]:
+def _stage_all(p: _ProjectRefs) -> tuple[bool, str, str]:
     """``git add -A`` into the per-project index."""
     return _run_git(["add", "-A"], p.store, p.abs_dir, timeout=_GIT_TIMEOUT * 2, index_file=p.index_file)
 
 
-def _diff_staged_tree(p: _ProjectRefs, *diff_args: List[str]) -> List[Tuple[bool, str, str]]:
+def _diff_staged_tree(p: _ProjectRefs, *diff_args: list[str]) -> list[tuple[bool, str, str]]:
     """Stage the working tree (so new files show), run each ``git diff`` variant,
     then point the index back at the ref so it doesn't drift."""
     _stage_all(p)
@@ -574,20 +574,20 @@ def _diff_staged_tree(p: _ProjectRefs, *diff_args: List[str]) -> List[Tuple[bool
     return results
 
 
-def _commit_exists(p: _ProjectRefs, commit_hash: str) -> Tuple[bool, str]:
+def _commit_exists(p: _ProjectRefs, commit_hash: str) -> tuple[bool, str]:
     ok, _, err = _run_git(["cat-file", "-t", commit_hash], p.store, p.abs_dir)
     return ok, err
 
 
-def _restore_ok(commit_hash: str, reason: str, abs_dir: str, **extra) -> Dict:
+def _restore_ok(commit_hash: str, reason: str, abs_dir: str, **extra) -> dict:
     return {"success": True, "restored_to": commit_hash[:8], "reason": reason, "directory": abs_dir, **extra}
 
 
 @dataclass
 class _SafeRestoreTargets:
-    checkout: List[str] = field(default_factory=list)
-    kept_oversize: List[str] = field(default_factory=list)
-    failed_deletes: List[str] = field(default_factory=list)
+    checkout: list[str] = field(default_factory=list)
+    kept_oversize: list[str] = field(default_factory=list)
+    failed_deletes: list[str] = field(default_factory=list)
 
 
 class CheckpointManager:
@@ -602,7 +602,7 @@ class CheckpointManager:
         self.enabled = enabled
         self.max_snapshots, self.max_total_size_mb, self.max_file_size_mb = (
             max(1, int(max_snapshots)), max(0, int(max_total_size_mb)), max(0, int(max_file_size_mb)))
-        self._checkpointed_dirs: Set[str] = set()
+        self._checkpointed_dirs: set[str] = set()
         self._git_available: Optional[bool] = None  # lazy probe
 
     def new_turn(self) -> None:
@@ -640,7 +640,7 @@ class CheckpointManager:
         except Exception as exc:
             logger.debug("record_agent_write failed for %s: %s", file_path, exc)
 
-    def safe_restore_plan(self, working_dir: str, commit_hash: str) -> Dict:
+    def safe_restore_plan(self, working_dir: str, commit_hash: str) -> dict:
         """Classify files changed since ``commit_hash``: ``restore`` = still matching what Hermes
         last wrote (or deleted since); ``skipped`` = user-edited afterwards or never written by
         Hermes.  ``ledger_empty`` => no ledger, callers fall back to a full restore."""
@@ -657,7 +657,7 @@ class CheckpointManager:
         ledger = _load_ledger(p.store, self._ledger_key(p.abs_dir))
         if not ledger:
             return {"success": True, "restore": [], "skipped": [], "ledger_empty": True}
-        out: Dict[str, List[str]] = {"restore": [], "skipped": []}
+        out: dict[str, list[str]] = {"restore": [], "skipped": []}
         for rel in filter(None, names_out.split("\x00")):
             abs_path = Path(p.abs_dir) / rel
             entry = ledger.get(str(abs_path))
@@ -689,7 +689,7 @@ class CheckpointManager:
             logger.debug("Checkpoint failed (non-fatal): %s", e)
             return False
 
-    def list_checkpoints(self, working_dir: str) -> List[Dict]:
+    def list_checkpoints(self, working_dir: str) -> list[dict]:
         """List available checkpoints for a directory (most recent first)."""
         p = _project_refs(working_dir)
         if not _store_has_head(p.store):
@@ -697,7 +697,7 @@ class CheckpointManager:
 
         log = _git_out(["log", p.ref, "--format=%H|%h|%aI|%s", "-n", str(self.max_snapshots)],
                        p.store, p.abs_dir, {128, 129})
-        results: List[Dict] = []
+        results: list[dict] = []
         for line in log.splitlines():
             parts = line.split("|", 3)
             if len(parts) != 4:
@@ -712,7 +712,7 @@ class CheckpointManager:
             results.append(entry)
         return results
 
-    def list_all_checkpoints(self) -> List[Dict]:
+    def list_all_checkpoints(self) -> list[dict]:
         """Checkpoints across every registered project (most recent first), each tagged ``workdir``.
 
         Surgical reapply of PR #10633 by @nightq (#10505) onto the v2 single-store layout: iterate
@@ -728,7 +728,7 @@ class CheckpointManager:
                    for entry in self.list_checkpoints(workdir)]
         return sorted(results, key=lambda x: x.get("timestamp", ""), reverse=True)
 
-    def diff(self, working_dir: str, commit_hash: str) -> Dict:
+    def diff(self, working_dir: str, commit_hash: str) -> dict:
         """Show diff between a checkpoint and the current working tree."""
         p, err = _locate(working_dir, commit_hash)
         if err:
@@ -743,7 +743,7 @@ class CheckpointManager:
             return {"success": False, "error": "Could not generate diff"}
         return {"success": True, "stat": stat_out if ok_stat else "", "diff": diff_out if ok_diff else ""}
 
-    def session_diff(self, working_dir: str) -> Dict:
+    def session_diff(self, working_dir: str) -> dict:
         """Cumulative diff powering ``/diff session``: earliest retained checkpoint vs working tree.
         The ref persists per project, so the baseline may predate the session or postdate it after
         pruning — an approximation.  Same shape as :meth:`diff`; no checkpoints => ``"empty": True``."""
@@ -759,8 +759,8 @@ class CheckpointManager:
                 result["empty"] = True
         return result
 
-    def restore(self, working_dir: str, commit_hash: str, file_path: str = None,
-                safe: bool = False) -> Dict:
+    def restore(self, working_dir: str, commit_hash: str, file_path: str | None = None,
+                safe: bool = False) -> dict:
         """Restore files to a checkpoint state.  ``safe=True`` (full-directory only) leaves files
         the user hand-edited after Hermes' last write untouched (agent-write ledger); the result
         then gains ``skipped_user_edits``, ``skipped_oversize`` (size cap kept them out of every
@@ -773,8 +773,8 @@ class CheckpointManager:
         if not ok:
             return {"success": False, "error": f"Checkpoint '{commit_hash}' not found", "debug": err or None}
 
-        skipped_user_edits: List[str] = []
-        restore_paths: Optional[List[str]] = None
+        skipped_user_edits: list[str] = []
+        restore_paths: Optional[list[str]] = None
         if safe and not file_path:
             plan = self.safe_restore_plan(abs_dir, commit_hash)
             if not plan.get("success"):
@@ -813,7 +813,7 @@ class CheckpointManager:
         return result
 
     def _apply_safe_restore_deletes(self, p: _ProjectRefs, commit_hash: str,
-                                    restore_paths: List[str]) -> _SafeRestoreTargets:
+                                    restore_paths: list[str]) -> _SafeRestoreTargets:
         """Split ledger-approved paths into checkout targets and delete the rest.  A path absent
         from the checkpoint is Hermes-created (delete to restore) — unless ``max_file_size_mb`` kept
         it out of every checkpoint: no prior copy exists and the ledger can't prove it agent-created
@@ -978,7 +978,7 @@ def _index_unchanged_reason(p: _ProjectRefs, ref_commit: Optional[str]) -> Optio
     return "empty tree" if ok_ls and not ls_out.strip() else None
 
 
-def format_checkpoint_list(checkpoints: List[Dict], directory: str) -> str:
+def format_checkpoint_list(checkpoints: list[dict], directory: str) -> str:
     """Format checkpoint list for display to user."""
     if not checkpoints:
         return f"No checkpoints found for {directory}"
@@ -1036,7 +1036,7 @@ def _int_or_none(value) -> Optional[int]:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
-def _sweep(entries, result: Dict[str, int], delete) -> None:
+def _sweep(entries, result: dict[str, int], delete) -> None:
     """Shared orphan/stale sweep.  ``entries`` yields ``(item, gone, allowed, is_stale)`` where
     ``is_stale`` is a thunk (may do I/O, so only evaluated for non-orphans); "orphan" wins."""
     for item, gone, allowed, is_stale in entries:
@@ -1046,7 +1046,7 @@ def _sweep(entries, result: Dict[str, int], delete) -> None:
             delete(item, reason)
 
 
-def _rmtree_counted(child: Path, result: Dict[str, int], key: str, fail_fmt: str, label) -> None:
+def _rmtree_counted(child: Path, result: dict[str, int], key: str, fail_fmt: str, label) -> None:
     """rmtree ``child``, crediting bytes + ``result[key]``; failures count as ``errors`` when tracked."""
     try:
         size = _dir_size_bytes(child)
@@ -1059,7 +1059,7 @@ def _rmtree_counted(child: Path, result: Dict[str, int], key: str, fail_fmt: str
         logger.warning(fail_fmt, label, exc)
 
 
-def _prune_legacy_archives(base: Path, cutoff: float, result: Dict[str, int]) -> None:
+def _prune_legacy_archives(base: Path, cutoff: float, result: dict[str, int]) -> None:
     """Delete ``legacy-*`` archives whose mtime predates ``cutoff`` (skipped when retention is off)."""
     for child in _legacy_archives(base) if cutoff > 0 else ():
         mtime = _mtime_or_none(child)
@@ -1068,7 +1068,7 @@ def _prune_legacy_archives(base: Path, cutoff: float, result: Dict[str, int]) ->
 
 
 def _prune_pre_v2_repos(base: Path, cutoff: float, delete_orphans: bool,
-                        orphan_allowlist: Optional[set], result: Dict[str, int]) -> None:
+                        orphan_allowlist: Optional[set], result: dict[str, int]) -> None:
     """Sweep pre-v2 per-project shadow repos exactly as the v1 pruner did (scan shared with
     ``store_status``; the frozen layout has no recorded parent identity, so orphan detection
     uses the structural checks only)."""
@@ -1086,7 +1086,7 @@ def _prune_pre_v2_repos(base: Path, cutoff: float, delete_orphans: bool,
 
 
 def _prune_v2_projects(store: Path, cutoff: float, delete_orphans: bool,
-                       orphan_allowlist: Optional[set], result: Dict[str, int]) -> None:
+                       orphan_allowlist: Optional[set], result: dict[str, int]) -> None:
     """Drop the ref, index and metadata of orphan/stale projects in the shared store."""
     def entries():
         for meta in _list_projects(store):
@@ -1110,7 +1110,7 @@ def _prune_v2_projects(store: Path, cutoff: float, delete_orphans: bool,
 
 
 def prune_checkpoints(retention_days: int = 7, delete_orphans: bool = True, checkpoint_base: Optional[Path] = None,
-                      max_total_size_mb: int = 0, orphan_allowlist: Optional[set] = None) -> Dict[str, int]:
+                      max_total_size_mb: int = 0, orphan_allowlist: Optional[set] = None) -> dict[str, int]:
     """Delete stale/orphan checkpoints and reclaim store space.  Never raises.  Deleted when
     ``delete_orphans`` and the workdir is observably gone, OR last touch predates ``retention_days``
     (``<= 0`` disables).  ``orphan_allowlist`` (v2 ``_hash`` strings and/or pre-v2 repo paths as
@@ -1145,12 +1145,12 @@ def prune_checkpoints(retention_days: int = 7, delete_orphans: bool = True, chec
 
 
 def maybe_auto_prune_checkpoints(retention_days: int = 7, min_interval_hours: int = 24, delete_orphans: bool = True,
-                                 checkpoint_base: Optional[Path] = None, max_total_size_mb: int = 0) -> Dict[str, object]:
+                                 checkpoint_base: Optional[Path] = None, max_total_size_mb: int = 0) -> dict[str, object]:
     """Idempotent wrapper around ``prune_checkpoints`` for startup hooks: writes
     ``CHECKPOINT_BASE/.last_prune`` so calls within ``min_interval_hours`` short-circuit.
     Returns ``{"skipped": bool, "result": prune dict, "error": optional str}``."""
     base = checkpoint_base or _resolve_checkpoint_base()
-    out: Dict[str, object] = {"skipped": False}
+    out: dict[str, object] = {"skipped": False}
     try:
         if not base.exists():
             out["result"] = _empty_prune_result()
@@ -1158,7 +1158,7 @@ def maybe_auto_prune_checkpoints(retention_days: int = 7, min_interval_hours: in
         marker = base / _PRUNE_MARKER_NAME
         now = time.time()
         try:
-            if marker.exists() and now - float(marker.read_text(encoding="utf-8").strip()) < min_interval_hours * 3600:
+            if marker.exists() and now - float(marker.read_text(encoding="utf-8-sig").strip()) < min_interval_hours * 3600:
                 out["skipped"] = True
                 return out
         except (OSError, ValueError):
@@ -1183,7 +1183,7 @@ def maybe_auto_prune_checkpoints(retention_days: int = 7, min_interval_hours: in
     return out
 
 
-def auto_prune_from_config() -> Dict[str, object]:
+def auto_prune_from_config() -> dict[str, object]:
     """``maybe_auto_prune_checkpoints`` driven by the ``checkpoints:`` config section — the one
     startup/housekeeping entry point for the CLI and the gateway. ``delete_orphans`` is never
     honoured unattended: a missing workdir is ambiguous (deleted vs. unmounted share); orphan
@@ -1229,14 +1229,14 @@ def checkpoint_footprint_notice() -> Optional[str]:
         return None
 
 
-def store_status(checkpoint_base: Optional[Path] = None) -> Dict:
+def store_status(checkpoint_base: Optional[Path] = None) -> dict:
     """Summarise the shadow store: ``{"base", "store_size_bytes", "legacy_size_bytes",
     "total_size_bytes", "project_count", "projects", "pre_v2_projects", "legacy_archives"}``.
     ``pre_v2_projects`` are repos still on the pre-v2 layout, distinct from the migrated
     ``legacy_archives``; an orphan-deletion preview must include both ``projects`` and
     ``pre_v2_projects`` since ``prune_checkpoints`` sweeps both."""
     base = checkpoint_base or _resolve_checkpoint_base()
-    out: Dict = {"base": str(base), "store_size_bytes": 0, "legacy_size_bytes": 0, "total_size_bytes": 0,
+    out: dict = {"base": str(base), "store_size_bytes": 0, "legacy_size_bytes": 0, "total_size_bytes": 0,
                  "project_count": 0, "projects": [], "pre_v2_projects": [], "legacy_archives": []}
     if not base.exists():
         return out
@@ -1262,7 +1262,7 @@ def store_status(checkpoint_base: Optional[Path] = None) -> Dict:
     return out
 
 
-def clear_all(checkpoint_base: Optional[Path] = None) -> Dict[str, int]:
+def clear_all(checkpoint_base: Optional[Path] = None) -> dict[str, int]:
     """Nuke the entire checkpoint base (store + legacy).  Irreversible.
     Returns ``{"bytes_freed": N, "deleted": bool}``."""
     base = checkpoint_base or _resolve_checkpoint_base()
@@ -1278,7 +1278,7 @@ def clear_all(checkpoint_base: Optional[Path] = None) -> Dict[str, int]:
     return out
 
 
-def clear_legacy(checkpoint_base: Optional[Path] = None) -> Dict[str, int]:
+def clear_legacy(checkpoint_base: Optional[Path] = None) -> dict[str, int]:
     """Delete all ``legacy-*`` archive directories and report any failures."""
     base = checkpoint_base or _resolve_checkpoint_base()
     out = {"bytes_freed": 0, "deleted": 0, "errors": 0}

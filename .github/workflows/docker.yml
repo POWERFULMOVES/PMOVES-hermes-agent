@@ -162,7 +162,7 @@ jobs:
         # subprocess and don't import hermes_agent's optional deps.
         uses: ./.github/actions/retry
         with:
-          command: uv sync --locked --python 3.11 --extra dev
+          command: uv sync --locked --python 3.11 --group dev
 
       - name: Run docker integration tests
         env:

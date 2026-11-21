@@ -77,7 +77,7 @@ class TaskEnvelope:
     timestamp: str = ""
 
     @classmethod
-    def from_json(cls, raw: str) -> "TaskEnvelope":
+    def from_json(cls, raw: str) -> TaskEnvelope:
         obj = json.loads(raw)
         return cls(
             task_id=obj.get("task_id", ""),
@@ -137,7 +137,7 @@ def _nats_available() -> bool:
     instead of crashing on import.
     """
     try:
-        import nats  # noqa: F401
+        import nats
         return True
     except ImportError:
         return False
@@ -205,16 +205,16 @@ def subscribe(
 
 
 __all__ = [
-    "SUBJECT_TASK",
-    "SUBJECT_RESULT",
+    "KNOWN_TARGETS",
     "SUBJECT_BPM_PHASE",
     "SUBJECT_BPM_POMODORO",
-    "KNOWN_TARGETS",
-    "TaskEnvelope",
+    "SUBJECT_RESULT",
+    "SUBJECT_TASK",
     "ResultEnvelope",
     "SubscriberStatus",
-    "subscribe",
+    "TaskEnvelope",
+    "_enabled",
     # exposed for tests:
     "_nats_available",
-    "_enabled",
+    "subscribe",
 ]

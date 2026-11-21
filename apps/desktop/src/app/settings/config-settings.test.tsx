@@ -7,6 +7,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import type * as ConfigApi from '@/api/config'
 import { $settingsRequestProfile } from '@/store/settings-scope'
+import { $autoSpeakReplies, setAutoSpeakReplies } from '@/store/voice-prefs'
 
 import type { ConfigSettings as ConfigSettingsType } from './config-settings'
 
@@ -54,6 +55,7 @@ vi.mock('@/store/settings-scope', () => ({
 }))
 
 vi.mock('@/store/projects', () => ({
+  $worktreeRefreshToken: atom(0),
   repoDiscoveryPolicyFromConfig: () => ({ enabled: true, roots: [], exclude_paths: [] }),
   repoDiscoveryPolicySignature: (policy: unknown) => JSON.stringify(policy),
   scanAndRecordRepos: vi.fn().mockResolvedValue(undefined)
@@ -96,35 +98,6 @@ function renderConfigSettings(activeSectionId = 'safety') {
 }
 
 describe('ConfigSettings autosave', () => {
-  it('renders and saves the Codex compression auto-raise setting', async () => {
-    getHermesConfigRecord.mockResolvedValue({
-      compression: { codex_gpt55_autoraise: true }
-    })
-    getHermesConfigSchema.mockResolvedValue({
-      fields: {
-        'compression.codex_gpt55_autoraise': { type: 'boolean' }
-      }
-    })
-
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-
-    try {
-      renderConfigSettings('memory')
-
-      expect(await screen.findByText('Codex Compression Auto-Raise')).toBeTruthy()
-      expect(screen.getByText('Raise compression to 85% for supported ChatGPT Codex OAuth models.')).toBeTruthy()
-
-      screen.getByRole('switch').click()
-      await vi.advanceTimersByTimeAsync(700)
-
-      await vi.waitFor(() =>
-        expect(saveHermesConfig).toHaveBeenCalledWith({ compression: { codex_gpt55_autoraise: false } }, 'default')
-      )
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
   it('sends a later revert instead of diffing it away against the stale page-load baseline', async () => {
     getHermesConfigRecord.mockResolvedValue({ checkpoints: { enabled: false }, other: 'untouched' })
 
@@ -179,5 +152,25 @@ describe('ConfigSettings autosave', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it("Settings → Voice shows and drives Desktop read-aloud, apart from the profile's voice.auto_tts", async () => {
+    await setAutoSpeakReplies(true)
+    getHermesConfigRecord.mockResolvedValue({ voice: { auto_tts: false } })
+    getHermesConfigSchema.mockResolvedValue({ fields: { 'voice.auto_tts': { type: 'boolean' } } })
+
+    renderConfigSettings('voice')
+
+    const desktop = await screen.findByRole('switch', { name: 'Read replies aloud in this app' })
+    // Desktop is reading aloud even though this profile's messaging setting is off: show that.
+    expect(desktop.getAttribute('aria-checked')).toBe('true')
+
+    desktop.click()
+    await vi.waitFor(() => expect($autoSpeakReplies.get()).toBe(false))
+
+    // The profile setting (possibly another profile's) never moves the Desktop switch.
+    ;(await screen.findByRole('switch', { name: 'Read Responses Aloud' })).click()
+    await vi.waitFor(() => expect(saveHermesConfig).toHaveBeenCalled())
+    expect($autoSpeakReplies.get()).toBe(false)
   })
 })

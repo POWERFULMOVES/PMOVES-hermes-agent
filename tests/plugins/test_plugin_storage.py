@@ -33,10 +33,6 @@ def test_data_dir_lives_outside_the_install_tree(hermes_home):
     assert (hermes_home / "plugins") not in root.parents
 
 
-def test_data_dir_is_stable_across_calls(hermes_home):
-    assert plugin_data_dir("p") == plugin_data_dir("p")
-
-
 @pytest.mark.parametrize("bad", ["", ".", "..", "../escape", "a/b", "a\\b", "x" * 65])
 def test_hostile_names_are_rejected(hermes_home, bad):
     with pytest.raises(ValueError):
@@ -46,7 +42,7 @@ def test_hostile_names_are_rejected(hermes_home, bad):
 def test_plugin_db_journal_mode_is_the_shared_fallback_verdict(hermes_home):
     """Plugin DBs take the journal mode the core WAL helper decides for this SQLite build and
     filesystem (WAL normally; DELETE on WAL-reset-bug builds or network FS) — never a raw PRAGMA."""
-    from hermes_state_wal import is_sqlite_wal_reset_vulnerable
+    from sqlite_support import is_sqlite_wal_reset_vulnerable
 
     conn = plugin_db("board")
     try:

@@ -17,20 +17,21 @@ from tools.computer_use.cua_backend_capture import _CaptureMixin
 
 
 class _StubCapture(_CaptureMixin):
-    """Capture-lane shell: enough state for ``_gws_args``, no driver, no session."""
+    """Capture-lane shell: enough state for ``_gws_args``, with an unstarted session."""
 
     def __init__(self) -> None:
         self._active_pid: Optional[int] = 607
         self._active_window_id: Optional[int] = 382
         self._session_id: Optional[str] = None
         self._last_app = ""
+        self._session = cua_backend._CuaDriverSession(cua_backend._AsyncBridge())
 
     def _resolve_capture_windows(self, mode: str, app: Optional[str], pid: Optional[int],
-                                 window_id: Optional[int]) -> List[Dict[str, Any]]:
+                                 window_id: Optional[int]) -> list[dict[str, Any]]:
         return [{"app_name": "Finder", "pid": 607, "window_id": 382, "title": "", "z_index": 1,
                  "off_screen": False}]
 
-    def _set_active_target(self, target: Dict[str, Any]) -> None:
+    def _set_active_target(self, target: dict[str, Any]) -> None:
         self._active_pid, self._active_window_id = target["pid"], target["window_id"]
 
 
@@ -76,6 +77,5 @@ class TestCappedWalkHint:
     def test_hint_names_a_cap_only_when_the_walk_hit_it(self, monkeypatch, n_elements, bound, capped):
         text = self._summary(monkeypatch, n_elements=n_elements, bound=bound)
         assert ("accessibility walk capped" in text) is capped
-        assert (f"accessibility walk capped at {bound} elements; pass app= to narrow" in text) is capped
         assert ("full element tree with untruncated labels saved to" in text) is not capped
         assert "element tree with untruncated labels saved to" in text

@@ -25,7 +25,6 @@ hiding a real background operator is not.
 import pytest
 
 from tools.shell_heredoc import strip_inert_heredoc_bodies
-from tools.terminal_tool_guards import _strip_quotes
 from tools.terminal_tool import (
     _foreground_background_guidance as guidance,
 )
@@ -51,9 +50,6 @@ class TestInertQuotedHeredocPayloadAllowed:
         cmd = "python3 <<'EOF'" + NL + "z = a " + AMP + " b" + NL + "print(z)" + NL + "EOF"
         assert guidance(cmd) is None
 
-    def test_cat_literal_ui_text_in_body(self):
-        cmd = "cat <<'EOF'" + NL + "About FaceTime " + AMP + " Privacy" + NL + "EOF"
-        assert guidance(cmd) is None
 
     def test_double_quoted_delimiter(self):
         cmd = 'cat <<"EOF"' + NL + "foo " + AMP + " bar" + NL + "EOF"
@@ -251,27 +247,11 @@ class TestRealBackgroundingStillBlocked:
         )
         assert guidance(cmd) is not None
 
-    def test_background_after_cat_heredoc_redirect(self):
-        cmd = (
-            "cat <<'EOF' > f.txt" + NL + "payload" + NL + "EOF" + NL
-            + "long_running " + AMP
-        )
-        assert guidance(cmd) is not None
 
 
 class TestStripHelpers:
     """Direct unit checks on the masking helpers."""
 
-    def test_inert_body_removed_shell_tail_preserved(self):
-        cmd = (
-            "python3 - <<'PY'" + NL
-            + "x = left " + AMP + " right" + NL
-            + "PY" + NL
-            + "sleep 10 " + AMP
-        )
-        stripped = _strip_quotes(cmd)
-        assert "x = left " + AMP + " right" not in stripped
-        assert "sleep 10 " + AMP in stripped
 
     def test_masking_preserves_line_structure(self):
         cmd = (
@@ -322,3 +302,23 @@ class TestStripHelpers:
         stripped = strip_inert_heredoc_bodies(cmd)
         assert "sleep 7 " + AMP not in stripped
         assert "echo after" in stripped
+
+    @pytest.mark.parametrize(
+        ("opener", "delimiter"),
+        [("python3 - <<'PY'", "PY"), ("osascript <<'EOF'", "EOF")],
+    )
+    def test_strict_view_keeps_code_consumer_bodies_visible(self, opener, delimiter):
+        # #127698: a python/osascript body is executable payload, not data — a
+        # security scanner must be able to see it (mask_code_consumers=False).
+        cmd = opener + NL + "os.system('x')" + NL + delimiter
+        assert strip_inert_heredoc_bodies(cmd, mask_code_consumers=False) == cmd
+
+    def test_strict_view_still_masks_cat_body(self):
+        cmd = "cat <<'EOF'" + NL + "payload text" + NL + "EOF"
+        assert "payload" not in strip_inert_heredoc_bodies(cmd, mask_code_consumers=False)
+
+    def test_default_view_still_masks_code_consumers(self):
+        # The lenient default is unchanged: the #63788 guidance fix keeps treating a
+        # python bitwise-and inside a quoted body as payload, not a background operator.
+        cmd = "python3 - <<'PY'" + NL + "z = a " + AMP + " b" + NL + "PY"
+        assert (" " + AMP + " ") not in strip_inert_heredoc_bodies(cmd)

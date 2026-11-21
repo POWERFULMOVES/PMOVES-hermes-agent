@@ -270,7 +270,7 @@ def _normalize_launchd_plist_for_comparison(text: str) -> str:
     import re
     return re.sub(
         r"(<key>PATH</key>\s*<string>)(.*?)(</string>)", r"\1__HERMES_PATH__\3",
-        _gw()._normalize_service_definition(text), flags=re.S,
+        _gw()._normalize_service_definition(text), flags=re.DOTALL,
     )
 
 
@@ -284,11 +284,11 @@ def systemd_unit_is_current(system: bool = False) -> bool:
     if not unit_path.exists():
         return False
 
-    installed = unit_path.read_text(encoding="utf-8")
+    installed = unit_path.read_text(encoding="utf-8-sig")
     expected_user = _gw()._read_systemd_user_from_unit(unit_path) if system else None
     expected = _gw().generate_systemd_unit(system=system, run_as_user=expected_user)
     # Ignore directives older systemd drops (RestartMaxDelaySec, RestartSteps) to avoid a perpetual "outdated" flag.
-    norm = lambda text: _gw()._normalize_service_definition(_gw()._strip_optional_systemd_directives(text))  # noqa: E731
+    norm = lambda text: _gw()._normalize_service_definition(_gw()._strip_optional_systemd_directives(text))
     return norm(installed) == norm(expected)
 
 
@@ -298,7 +298,7 @@ def _temp_home_in_service_definition(definition: str) -> str | None:
     import re
     import tempfile
     candidates = re.findall(r'HERMES_HOME=([^"\n]+)', definition)
-    candidates += re.findall(r"<key>HERMES_HOME</key>\s*<string>(.*?)</string>", definition, flags=re.S)
+    candidates += re.findall(r"<key>HERMES_HOME</key>\s*<string>(.*?)</string>", definition, flags=re.DOTALL)
     temp_roots = {
         Path(tempfile.gettempdir()).resolve(),
         Path("/tmp"), Path("/var/tmp"), Path("/private/tmp"), Path("/private/var/tmp"),  # no-tmp: ok — detects a temp HERMES_HOME in service definitions

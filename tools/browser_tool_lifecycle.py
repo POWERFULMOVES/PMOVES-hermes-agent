@@ -10,7 +10,7 @@ import signal
 import subprocess
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -23,7 +23,7 @@ from tools import browser_tool_install as _install
 from tools import browser_tool_real_profile as _real_profile
 
 
-def _session_expiry_timestamp(session_info: Dict[str, Any]) -> Optional[float]:
+def _session_expiry_timestamp(session_info: dict[str, Any]) -> Optional[float]:
     """Provider-authoritative session expiry as epoch seconds; None when absent or
     malformed (cloud providers may omit ``expires_at``; local browsers never have one)."""
     value = session_info.get("expires_at")
@@ -41,12 +41,12 @@ def _session_expiry_timestamp(session_info: Dict[str, Any]) -> Optional[float]:
         _bt.logger.warning("Ignoring invalid cloud browser session expiry timestamp")
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed.timestamp()
 
 
 def _session_has_expired(
-    session_info: Dict[str, Any], *, now: Optional[float] = None
+    session_info: dict[str, Any], *, now: Optional[float] = None
 ) -> bool:
     """Whether a cached browser session crossed its provider deadline."""
     expires_at = _session_expiry_timestamp(session_info)
@@ -275,12 +275,12 @@ def _socket_dir_idle_seconds(socket_dir: str) -> Optional[float]:
 def _read_pid_file(path: str) -> Optional[int]:
     """Integer PID from ``path``; None when missing or corrupt."""
     try:
-        return int(Path(path).read_text(encoding="utf-8").strip())
+        return int(Path(path).read_text(encoding="utf-8-sig").strip())
     except (ValueError, OSError):
         return None
 
 
-def _owner_pid_alive(socket_dir: str, session_name: str) -> Tuple[Optional[int], Optional[bool]]:
+def _owner_pid_alive(socket_dir: str, session_name: str) -> tuple[Optional[int], Optional[bool]]:
     """Read ``<session>.owner_pid`` and report ``(pid, alive)``; ``(None, None)`` when missing/corrupt."""
     owner_pid = _read_pid_file(os.path.join(socket_dir, f"{session_name}.owner_pid"))
     if owner_pid is None:
@@ -595,7 +595,7 @@ def _kill_verified_daemon(socket_dir: str, session_name: str) -> bool:
     if not os.path.isfile(pid_file):
         return False
     try:
-        daemon_pid = int(Path(pid_file).read_text(encoding="utf-8").strip())
+        daemon_pid = int(Path(pid_file).read_text(encoding="utf-8-sig").strip())
         if not _verify_reapable_browser_daemon(daemon_pid, socket_dir, session_name):
             _bt.logger.debug("Skipped daemon kill for %s: pid %s failed identity verification", session_name, daemon_pid)
             return False
@@ -609,7 +609,7 @@ def _kill_verified_daemon(socket_dir: str, session_name: str) -> bool:
         return False
 
 
-def _release_session_resources(task_id: str, session_info: Dict[str, Any]) -> None:
+def _release_session_resources(task_id: str, session_info: dict[str, Any]) -> None:
     """Untrack ``task_id``, close its cloud provider session, kill its daemon — the
     unconditional tail of a teardown, and the whole of the janitor's force-reap path.
 

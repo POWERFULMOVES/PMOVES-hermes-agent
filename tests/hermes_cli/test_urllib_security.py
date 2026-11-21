@@ -386,7 +386,7 @@ def test_azure_anthropic_probe_drops_api_key_and_bearer_on_redirect():
 @pytest.fixture(autouse=True)
 def _reset_https_context_cache():
     """Keep the CA-context memo from carrying a previous test's env into the next one."""
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     urllib_security._HTTPS_CONTEXT_CACHE = None
     yield
@@ -404,7 +404,7 @@ def _clear_ca_bundle_env(monkeypatch) -> None:
 
 
 def test_hermes_owned_opener_uses_resolved_https_context(monkeypatch):
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     context = ssl.create_default_context()
     monkeypatch.setattr(urllib.request, "_opener", None)
@@ -423,79 +423,41 @@ def test_hermes_owned_opener_uses_resolved_https_context(monkeypatch):
     assert getattr(https_handlers[0], "_context", None) is context
 
 
-def test_resolved_https_context_prefers_configured_ca_bundle(monkeypatch, tmp_path):
-    import hermes_cli.urllib_security as urllib_security
+def test_resolved_https_context_defers_to_the_platform_store(monkeypatch, tmp_path):
+    """Hermes-owned urllib openers verify against the OS certificate store.
 
-    _clear_ca_bundle_env(monkeypatch)
-    ca_bundle = tmp_path / "corporate-ca.pem"
-    ca_bundle.touch()
-    expected_context = ssl.create_default_context()
-    seen: list[str | None] = []
-
-    def create_default_context(*, cafile=None):
-        seen.append(cafile)
-        return expected_context
-
-    monkeypatch.setenv("HERMES_CA_BUNDLE", str(ca_bundle))
-    monkeypatch.setattr(ssl, "create_default_context", create_default_context)
-
-    assert urllib_security._resolved_https_context() is expected_context
-    assert seen == [str(ca_bundle)]
-
-
-def test_resolved_https_context_uses_certifi_on_macos(monkeypatch):
-    import certifi
-    import hermes_cli.urllib_security as urllib_security
-
-    _clear_ca_bundle_env(monkeypatch)
-    expected_context = ssl.create_default_context()
-    seen: list[str | None] = []
-
-    def create_default_context(*, cafile=None):
-        seen.append(cafile)
-        return expected_context
-
-    monkeypatch.setattr(urllib_security.sys, "platform", "darwin")
-    monkeypatch.setattr(certifi, "where", lambda: "/certifi/cacert.pem")
-    monkeypatch.setattr(ssl, "create_default_context", create_default_context)
-
-    assert urllib_security._resolved_https_context() is expected_context
-    assert seen == ["/certifi/cacert.pem"]
-
-
-def test_invalid_ca_bundle_falls_back_to_certifi_on_macos(monkeypatch, tmp_path):
-    import certifi
-    import hermes_cli.urllib_security as urllib_security
-
-    _clear_ca_bundle_env(monkeypatch)
-    missing_bundle = tmp_path / "missing-ca.pem"
-    expected_context = ssl.create_default_context()
-    seen: list[str | None] = []
-
-    def create_default_context(*, cafile=None):
-        seen.append(cafile)
-        return expected_context
-
-    monkeypatch.setenv("HERMES_CA_BUNDLE", str(missing_bundle))
-    monkeypatch.setattr(urllib_security.sys, "platform", "darwin")
-    monkeypatch.setattr(certifi, "where", lambda: "/certifi/cacert.pem")
-    monkeypatch.setattr(ssl, "create_default_context", create_default_context)
-
-    assert urllib_security._resolved_https_context() is expected_context
-    assert seen == ["/certifi/cacert.pem"]
-
-
-def test_resolved_https_context_keeps_stdlib_default_off_macos(monkeypatch):
-    import hermes_cli.urllib_security as urllib_security
-
-    _clear_ca_bundle_env(monkeypatch)
-    monkeypatch.setattr(urllib_security.sys, "platform", "linux")
+    None means "urllib's default context", which — with truststore installed
+    process-wide — IS the platform verifier. There is no CA-bundle ladder
+    here any more: a stale or bogus env var must not steer or break trust,
+    which is precisely what the removed env/certifi ladder used to do.
+    """
+    from hermes_cli import urllib_security
 
     assert urllib_security._resolved_https_context() is None
 
+    for var in ("HERMES_CA_BUNDLE", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+        monkeypatch.setenv(var, str(tmp_path / "nope.pem"))
+    assert urllib_security._resolved_https_context() is None
+
+
+def test_resolved_https_context_installs_the_platform_verifier():
+    """Resolving trust for a Hermes opener must put truststore in force.
+
+    A stdlib urllib request is the call path certifi never covered (the
+    llama.cpp engine download among them), so the install has to happen here
+    and not only on the httpx side.
+    """
+    import ssl
+
+    from hermes_cli import urllib_security
+
+    urllib_security._resolved_https_context()
+
+    assert ssl.SSLContext.__module__.startswith("truststore")
+
 
 def test_installed_https_context_is_preserved(monkeypatch):
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     context = ssl.create_default_context()
     installed = urllib.request.build_opener(
@@ -538,7 +500,7 @@ def _counting_context_factory():
 
 def test_hermes_owned_openers_parse_the_ca_bundle_once(monkeypatch, tmp_path):
     """Every Hermes request builds an opener; the bundle must not be re-parsed each time."""
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     _clear_ca_bundle_env(monkeypatch)
     ca_bundle = tmp_path / "corporate-ca.pem"
@@ -563,7 +525,7 @@ def test_hermes_owned_openers_parse_the_ca_bundle_once(monkeypatch, tmp_path):
 
 
 def test_rotated_ca_bundle_is_picked_up(monkeypatch, tmp_path):
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     _clear_ca_bundle_env(monkeypatch)
     ca_bundle = tmp_path / "corporate-ca.pem"
@@ -584,7 +546,7 @@ def test_rotated_ca_bundle_is_picked_up(monkeypatch, tmp_path):
 
 def test_fallback_bundle_change_does_not_invalidate_the_memo(monkeypatch, tmp_path):
     """The memo keys on the preferred bundle only: certifi was never read, so its rotation is moot."""
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     _clear_ca_bundle_env(monkeypatch)
     preferred = tmp_path / "corporate-ca.pem"
@@ -604,7 +566,7 @@ def test_fallback_bundle_change_does_not_invalidate_the_memo(monkeypatch, tmp_pa
 
 def test_default_certificates_fallback_is_logged_once_after_all_bundles_fail(monkeypatch, caplog):
     """A failed candidate says "trying the next bundle"; the default-certificates line is emitted once."""
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     def create_default_context(*, cafile=None):
         raise ssl.SSLError(f"bad bundle {cafile}")
@@ -646,7 +608,7 @@ def test_a_failed_preferred_bundle_load_is_not_memoised(
     Whether the failure leaves no context at all or a context built from a fallback bundle (certifi
     on macOS), only a context built from the preferred bundle is memoised.
     """
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     _clear_ca_bundle_env(monkeypatch)
     paths = tuple(str(tmp_path / name) for name in candidates)

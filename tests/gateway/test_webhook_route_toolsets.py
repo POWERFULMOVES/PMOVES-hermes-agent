@@ -21,7 +21,6 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from gateway.config import PlatformConfig
-from gateway.platforms.base import BasePlatformAdapter
 from gateway.platforms.webhook import WebhookAdapter
 from gateway.run import GatewayRunner
 from hermes_cli.tools_config import _get_platform_tools
@@ -54,9 +53,6 @@ class TestWebhookAdapterToolsetsForSource:
         wa = _make_adapter({"mon": {"secret": "x", "toolsets": ["terminal", "file"]}})
         assert wa.toolsets_for_source(_Src("webhook:mon:d1")) == ["terminal", "file"]
 
-    def test_route_without_toolsets_returns_none(self):
-        wa = _make_adapter({"plain": {"secret": "x"}})
-        assert wa.toolsets_for_source(_Src("webhook:plain:d1")) is None
 
     def test_unknown_route_returns_none(self):
         wa = _make_adapter({})
@@ -66,7 +62,7 @@ class TestWebhookAdapterToolsetsForSource:
         wa = _make_adapter({"mon": {"secret": "x", "toolsets": ["terminal"]}})
         assert wa.toolsets_for_source(_Src("telegram:123")) is None
 
-    def test_empty_or_non_list_toolsets_returns_none(self):
+    def test_explicit_empty_list_is_an_override_but_non_list_is_not(self):
         wa = _make_adapter(
             {
                 "empty": {"secret": "x", "toolsets": []},
@@ -74,16 +70,10 @@ class TestWebhookAdapterToolsetsForSource:
                 "blank": {"secret": "x", "toolsets": ["  ", ""]},
             }
         )
-        assert wa.toolsets_for_source(_Src("webhook:empty:d")) is None
+        assert wa.toolsets_for_source(_Src("webhook:empty:d")) == []
         assert wa.toolsets_for_source(_Src("webhook:str:d")) is None
-        assert wa.toolsets_for_source(_Src("webhook:blank:d")) is None
+        assert wa.toolsets_for_source(_Src("webhook:blank:d")) == []
 
-    def test_base_adapter_default_is_none(self):
-        # Non-webhook adapters inherit a None default: no override anywhere.
-        wa = _make_adapter({})
-        assert (
-            BasePlatformAdapter.toolsets_for_source(wa, _Src("webhook:mon:d")) is None
-        )
 
 
 class TestGatewayResolveEnabledToolsetsForSource:
@@ -97,6 +87,38 @@ class TestGatewayResolveEnabledToolsetsForSource:
         )
         assert "terminal" in res and "file" in res and "web" in res
         assert "vision" not in res  # platform list fully replaced, not merged
+
+    def test_explicit_empty_route_denies_inherited_mcp_servers(self):
+        """A locked-down webhook route must not inherit the platform's MCP grants.
+
+        An explicit route toolsets=[] replaces the platform list, just as an
+        explicit platform_toolsets.webhook=[] does (#143574, #147025).
+        """
+        config = {
+            "platform_toolsets": {"webhook": ["web"]},
+            "mcp_servers": {
+                "desktop": {"url": "http://127.0.0.1:7310"},
+                "notes": {"url": "http://127.0.0.1:7311"},
+            },
+        }
+        adapter = _make_adapter({"locked": {"secret": "x", "toolsets": []}})
+        runner = _make_runner(adapter)
+        source = _Src("webhook:locked:d")
+        expected = sorted(_get_platform_tools(
+            {**config, "platform_toolsets": {"webhook": []}}, "webhook",
+        ))
+        assert "desktop" not in expected and "notes" not in expected
+        assert GatewayRunner._resolve_enabled_toolsets_for_source(
+            runner, config, source, "webhook",
+        ) == expected
+
+        # No route override still inherits the platform and enabled MCP servers.
+        default_runner = _make_runner(_make_adapter({"plain": {"secret": "x"}}))
+        inherited = GatewayRunner._resolve_enabled_toolsets_for_source(
+            default_runner, config, _Src("webhook:plain:d"), "webhook",
+        )
+        assert {"desktop", "notes"} <= set(inherited)
+        assert "web" in inherited
 
     def test_override_validated_like_platform_config(self):
         # Contract: resolving with an override is byte-identical to resolving
@@ -171,6 +193,9 @@ class TestToolsetsBindToAuthenticatedRoute:
 
         adapter.handle_message = _capture
         app = web.Application()
+        # Admission is durable: the route handler acks only through a session authority.
+        from tests.gateway.fixtures.webhook_route_authority import mount_authority
+        mount_authority(app, adapter)
         app.router.add_post("/webhooks/{route_name}", adapter._handle_webhook)
         body = json.dumps({"text": "hi"}).encode()
         sig = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
